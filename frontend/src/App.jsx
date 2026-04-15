@@ -9,6 +9,8 @@ import OutboundPage from '@/pages/wms/outbound/OutboundPage'
 import RequestsPage from '@/pages/wms/requests/RequestsPage'
 import OpnamePage from '@/pages/wms/opname/OpnamePage'
 import StockTransferPage from '@/pages/wms/transfer/StockTransferPage'
+import DeliveryOrderPage from '@/pages/wms/delivery/DeliveryOrderPage'
+import ReturnPage from '@/pages/wms/returns/ReturnPage'
 import PurchaseOrderPage from '@/pages/erp/purchase-orders/PurchaseOrderPage'
 import SupplierPage from '@/pages/erp/suppliers/SupplierPage'
 import InvoicePage from '@/pages/erp/finance/InvoicePage'
@@ -19,6 +21,7 @@ import WarehousePage from '@/pages/admin/WarehousePage'
 import UsersPage from '@/pages/admin/UsersPage'
 import MasterDataPage from '@/pages/admin/MasterDataPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
+import ReportsPage from '@/pages/reports/ReportsPage'
 
 function PrivateRoute({ children, allowedRoles }) {
   const { user, token } = useAuthStore()
@@ -32,15 +35,11 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Auth */}
       <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
 
-      {/* App (protected) */}
       <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-
-        {/* Profile */}
         <Route path="profile" element={<ProfilePage />} />
 
         {/* WMS */}
@@ -51,6 +50,11 @@ export default function App() {
         <Route path="opname" element={<OpnamePage />} />
         <Route path="stock-opname" element={<OpnamePage />} />
         <Route path="stock-transfer" element={<PrivateRoute allowedRoles={['admin','staff']}><StockTransferPage /></PrivateRoute>} />
+        <Route path="delivery-orders" element={<PrivateRoute allowedRoles={['admin','staff']}><DeliveryOrderPage /></PrivateRoute>} />
+        <Route path="returns" element={<PrivateRoute allowedRoles={['admin','staff','finance_procurement']}><ReturnPage /></PrivateRoute>} />
+
+        {/* Reports */}
+        <Route path="reports" element={<PrivateRoute allowedRoles={['admin','finance_procurement','manager']}><ReportsPage /></PrivateRoute>} />
 
         {/* ERP */}
         <Route path="erp/purchase-orders" element={<PrivateRoute allowedRoles={['admin','finance_procurement']}><PurchaseOrderPage /></PrivateRoute>} />

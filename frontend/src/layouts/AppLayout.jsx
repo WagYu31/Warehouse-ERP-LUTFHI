@@ -6,7 +6,7 @@ import {
   ClipboardList, Search, ShoppingCart, Truck, FileText,
   PiggyBank, RefreshCcw, BarChart3, Building2, Users,
   LogOut, ChevronDown, ChevronRight, Menu, X, Bell, Settings,
-  ArrowLeftRight, Database, User
+  ArrowLeftRight, Database, User, Send, RotateCcw, BarChart2
 } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
@@ -22,12 +22,23 @@ const NAV = [
     label: 'Manajemen Gudang',
     icon: Package,
     children: [
-      { label: 'Inventaris Stok',    icon: Search,          to: '/inventory' },
-      { label: 'Barang Masuk',       icon: ArrowDownCircle, to: '/inbound' },
-      { label: 'Barang Keluar',      icon: ArrowUpCircle,   to: '/outbound' },
-      { label: 'Permintaan (SPB)',   icon: ClipboardList,   to: '/requests' },
-      { label: 'Stock Opname',       icon: RefreshCcw,      to: '/opname' },
-      { label: 'Transfer Stok',      icon: ArrowLeftRight,  to: '/stock-transfer', roles: ['admin','staff'] },
+      { label: 'Inventaris Stok',    icon: Search,         to: '/inventory' },
+      { label: 'Barang Masuk (GRN)', icon: ArrowDownCircle,to: '/inbound' },
+      { label: 'Barang Keluar',      icon: ArrowUpCircle,  to: '/outbound' },
+      { label: 'Permintaan (SPB)',   icon: ClipboardList,  to: '/requests' },
+      { label: 'Stock Opname',       icon: RefreshCcw,     to: '/opname' },
+      { label: 'Transfer Stok',      icon: ArrowLeftRight, to: '/stock-transfer', roles: ['admin','staff'] },
+      { label: 'Surat Jalan (DO)',   icon: Send,           to: '/delivery-orders', roles: ['admin','staff'] },
+      { label: 'Retur Barang',       icon: RotateCcw,      to: '/returns' },
+    ],
+  },
+  {
+    label: 'Laporan',
+    icon: BarChart2,
+    roles: ['admin', 'finance_procurement', 'manager'],
+    children: [
+      { label: 'Kartu Stok',       icon: BarChart2, to: '/reports' },
+      { label: 'Laporan ERP',      icon: BarChart3, to: '/erp/reports' },
     ],
   },
   {
@@ -35,12 +46,11 @@ const NAV = [
     icon: BarChart3,
     roles: ['admin', 'finance_procurement', 'manager'],
     children: [
-      { label: 'Purchase Order',    icon: ShoppingCart, to: '/erp/purchase-orders', roles: ['admin','finance_procurement'] },
-      { label: 'Supplier',          icon: Truck,        to: '/erp/suppliers',        roles: ['admin','finance_procurement'] },
-      { label: 'Invoice',           icon: FileText,     to: '/erp/invoices',         roles: ['admin','finance_procurement'] },
-      { label: 'Budget',            icon: PiggyBank,    to: '/erp/budget',           roles: ['admin','finance_procurement'] },
-      { label: 'Reorder Point',     icon: RefreshCcw,   to: '/erp/reorder',          roles: ['admin','finance_procurement'] },
-      { label: 'Laporan ERP',       icon: BarChart3,    to: '/erp/reports' },
+      { label: 'Purchase Order',   icon: ShoppingCart, to: '/erp/purchase-orders', roles: ['admin','finance_procurement'] },
+      { label: 'Supplier',         icon: Truck,        to: '/erp/suppliers',        roles: ['admin','finance_procurement'] },
+      { label: 'Invoice',          icon: FileText,     to: '/erp/invoices',         roles: ['admin','finance_procurement'] },
+      { label: 'Budget',           icon: PiggyBank,    to: '/erp/budget',           roles: ['admin','finance_procurement'] },
+      { label: 'Reorder Point',    icon: RefreshCcw,   to: '/erp/reorder',          roles: ['admin','finance_procurement'] },
     ],
   },
   {
@@ -48,9 +58,9 @@ const NAV = [
     icon: Settings,
     roles: ['admin'],
     children: [
-      { label: 'Gudang',        icon: Building2,  to: '/admin/warehouses' },
-      { label: 'Pengguna',      icon: Users,      to: '/admin/users' },
-      { label: 'Master Data',   icon: Database,   to: '/admin/master-data' },
+      { label: 'Gudang',       icon: Building2, to: '/admin/warehouses' },
+      { label: 'Pengguna',     icon: Users,     to: '/admin/users' },
+      { label: 'Master Data',  icon: Database,  to: '/admin/master-data' },
     ],
   },
 ]
