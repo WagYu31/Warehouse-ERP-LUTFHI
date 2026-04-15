@@ -1,0 +1,73 @@
+version: '3.9'
+
+# ─── DEVELOPMENT ONLY ────────────────────────────────────────
+# Jalankan: docker compose -f docker-compose.dev.yml up -d
+# Backend dan Frontend dijalankan di host (hot reload)
+# Hanya database services yang di Docker
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wms_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wms_lutfhi
+      POSTGRES_USER: wms_user
+      POSTGRES_PASSWORD: wms_password_2026
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5435:5432"
+    networks:
+      - wms_dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wms_user -d wms_lutfhi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: wms_redis_dev
+    restart: unless-stopped
+    command: redis-server --requirepass redis_password_2026
+    ports:
+      - "6381:6379"
+    networks:
+      - wms_dev_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: wms_minio_dev
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: wms_minio_admin
+      MINIO_ROOT_PASSWORD: wms_minio_password_2026
+    volumes:
+      - minio_dev_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - wms_dev_network
+
+  # ─── ADMINER (Database GUI di browser) ───────────────────────
+  adminer:
+    image: adminer:latest
+    container_name: wms_adminer
+    restart: unless-stopped
+    ports:
+      - "8889:8080"
+    networks:
+      - wms_dev_network
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_dev_data:
+  minio_dev_data:
+
+networks:
+  wms_dev_network:
+    driver: bridge

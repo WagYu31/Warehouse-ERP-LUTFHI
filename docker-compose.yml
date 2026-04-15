@@ -1,0 +1,153 @@
+version: '3.9'
+
+services:
+  # ─── DATABASE ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: wms_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wms_lutfhi
+      POSTGRES_USER: wms_user
+      POSTGRES_PASSWORD: wms_password_2026
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - wms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wms_user -d wms_lutfhi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── CACHE / SESSION ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: wms_redis
+    restart: unless-stopped
+    command: redis-server --requirepass redis_password_2026 --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - wms_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password_2026", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FILE STORAGE (S3-compatible) ────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: wms_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: wms_minio_admin
+      MINIO_ROOT_PASSWORD: wms_minio_password_2026
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web Console
+    networks:
+      - wms_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── BACKEND GO ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wms_backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: wms_lutfhi
+      DB_USER: wms_user
+      DB_PASSWORD: wms_password_2026
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_password_2026
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: wms_minio_admin
+      MINIO_SECRET_KEY: wms_minio_password_2026
+      MINIO_BUCKET: wms-files
+      JWT_SECRET: your_super_secret_jwt_key_change_in_production_2026
+      JWT_EXPIRE_HOURS: 8
+      REFRESH_EXPIRE_DAYS: 7
+      CORS_ORIGINS: http://localhost:3000,https://yourdomain.com
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - wms_network
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  # ─── FRONTEND REACT ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080/api
+        VITE_APP_NAME: WMS LUTFHI
+    container_name: wms_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - wms_network
+
+  # ─── NGINX REVERSE PROXY ─────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: wms_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - wms_network
+
+# ─── VOLUMES ─────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+# ─── NETWORKS ────────────────────────────────────────────────
+networks:
+  wms_network:
+    driver: bridge
