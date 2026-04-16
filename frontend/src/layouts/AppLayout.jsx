@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 import {
   LayoutDashboard, Package, ArrowDownCircle, ArrowUpCircle,
   ClipboardList, Search, ShoppingCart, Truck, FileText,
   PiggyBank, RefreshCcw, BarChart3, Building2, Users,
   LogOut, ChevronDown, ChevronRight, Menu, X, Bell, Settings,
-  ArrowLeftRight, Database, User, Send, RotateCcw, BarChart2
+  ArrowLeftRight, Database, User, Send, RotateCcw, BarChart2,
+  Sun, Moon
 } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
@@ -213,8 +215,14 @@ function NotificationBell() {
 
 export default function AppLayout() {
   const { user, logout } = useAuthStore()
+  const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Apply saved theme on mount
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
   const handleLogout = () => {
     logout()
@@ -327,6 +335,17 @@ export default function AppLayout() {
           </button>
 
           <div className="flex-1" />
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="theme-toggle-btn relative w-9 h-9 flex items-center justify-center rounded-xl
+                       text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
+          >
+            <Sun  size={17} className="icon-sun" />
+            <Moon size={17} className="icon-moon" />
+          </button>
 
           {/* Notification bell */}
           <NotificationBell />
