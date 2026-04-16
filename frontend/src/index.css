@@ -579,9 +579,9 @@
 [data-theme='light'] .text-slate-300  { color:#334155 !important; }
 [data-theme='light'] .text-slate-400  { color:#475569 !important; }
 [data-theme='light'] .text-slate-500  { color:#64748B !important; }
-[data-theme='light'] .bg-\[#0A0F1E\]  { background:#F0F4F8 !important; }
-[data-theme='light'] .bg-\[#0D1221\]  { background:#FFFFFF !important; }
-[data-theme='light'] .bg-\[#111827\]  { background:#FFFFFF !important; }
+/* .bg-[#0A0F1E] handled via body/main */
+/* .bg-[#0D1221] handled via aside/header */
+/* .bg-[#111827] handled via dropdown-menu */
 [data-theme='light'] .bg-white\/\[0\.02\] { background:rgba(0,0,0,0.015) !important; }
 [data-theme='light'] .bg-white\/\[0\.03\] { background:rgba(0,0,0,0.02) !important; }
 [data-theme='light'] .bg-white\/\[0\.04\] { background:rgba(0,0,0,0.03) !important; }
