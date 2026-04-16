@@ -200,8 +200,3 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 	h.DB.Exec(`UPDATE items SET is_active=false WHERE id=$1`, c.Param("id"))
 	c.JSON(http.StatusOK, gin.H{"message": "Barang dinonaktifkan"})
 }
-
-func nullStr(s string) interface{} {
-	if s == "" { return nil }
-	return s
-}

@@ -14,6 +14,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"wms-lutfhi/handlers"
+	"wms-lutfhi/jobs"
 	"wms-lutfhi/middleware"
 )
 
@@ -84,6 +85,9 @@ func main() {
 
 	// Init Audit Middleware DB
 	middleware.SetAuditDB(DB)
+
+	// Start scheduler (cron jobs harian)
+	jobs.StartScheduler(DB)
 
 	// Gin mode
 	if os.Getenv("APP_ENV") == "production" {

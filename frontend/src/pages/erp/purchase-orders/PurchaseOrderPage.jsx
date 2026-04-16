@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart, Printer } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
+import { printPurchaseOrder } from '@/utils/printUtils'
 
 const STATUS_PO = { draft: 'warning', sent: 'info', partial: 'warning', complete: 'success', cancelled: 'danger' }
 
@@ -12,6 +13,12 @@ const COLS = [
   { key: 'supplier',  label: 'Supplier', render: v => v || '—' },
   { key: 'total',     label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
   { key: 'status',    label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_PO} /> },
+  { key: 'id', label: 'Print', render: (id, row) => (
+    <button onClick={() => printPurchaseOrder(row)}
+      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-slate-400 hover:text-white text-xs">
+      <Printer size={11} /> Print
+    </button>
+  )},
 ]
 
 export default function PurchaseOrderPage() {

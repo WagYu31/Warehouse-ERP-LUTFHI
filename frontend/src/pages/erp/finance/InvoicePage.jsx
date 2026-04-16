@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FileText, CreditCard, History } from 'lucide-react'
+import { FileText, CreditCard, History, Printer, Download } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
+import { printInvoice } from '@/utils/printUtils'
 
 const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID')
 const STATUS_COLOR = { paid: 'success', unpaid: 'warning', overdue: 'danger', partial: 'info' }
@@ -94,6 +95,10 @@ export default function InvoicePage() {
             <CreditCard size={11} /> Bayar
           </button>
         )}
+        <button onClick={() => printInvoice(row)}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs">
+          <Printer size={11} /> Print
+        </button>
         <button onClick={() => openHistory(row)}
           className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-slate-400 hover:text-white text-xs">
           <History size={11} /> Riwayat
