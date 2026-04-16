@@ -273,7 +273,8 @@ func main() {
 		}
 	}
 
-	port := getEnv("APP_PORT", "8080")
+	// Koyeb/Heroku inject PORT, fall back to APP_PORT
+	port := getEnv("PORT", getEnv("APP_PORT", "8080"))
 	log.Printf("🚀 WMS LUTFHI Backend v3.0 running on port %s", port)
 	log.Printf("📡 API: http://localhost:%s/api/health", port)
 	log.Printf("🔒 CORS allowed origins: %v", getAllowedOrigins())
