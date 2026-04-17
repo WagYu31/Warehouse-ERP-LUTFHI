@@ -6,9 +6,9 @@ import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormFi
 
 const COLS = [
   { key: 'ref_number', label: 'No. GRN', render: v => <span className="text-gold-400 font-mono text-sm">{v}</span> },
-  { key: 'date',       label: 'Tanggal' },
-  { key: 'supplier',   label: 'Supplier', render: v => <span className="text-slate-300">{v || '—'}</span> },
-  { key: 'warehouse',  label: 'Gudang' },
+  { key: 'received_date', label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'supplier_name', label: 'Supplier', render: v => <span className="text-slate-300">{v || '—'}</span> },
+  { key: 'warehouse_name', label: 'Gudang', render: v => v || '—' },
   { key: 'status',     label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
