@@ -39,19 +39,19 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
 
         // Recent transactions list (last 10, inbound + outbound combined)
         $recentTx = $db->query("
-            SELECT ref_number AS ref, status, created_at AS date, 'inbound' AS type
+            SELECT ref_number AS ref, status, created_at AS tx_date, 'inbound' AS type
             FROM inbound_transactions
             UNION ALL
-            SELECT ref_number AS ref, status, created_at AS date, 'outbound' AS type
+            SELECT ref_number AS ref, status, created_at AS tx_date, 'outbound' AS type
             FROM outbound_transactions
-            ORDER BY date DESC
+            ORDER BY tx_date DESC
             LIMIT 10
         ")->fetchAll();
         $recentTransactions = array_map(function($r) {
             return [
                 'ref'    => $r['ref'],
                 'status' => $r['status'],
-                'date'   => date('d M Y', strtotime($r['date'])),
+                'date'   => date('d M Y', strtotime($r['tx_date'])),
                 'type'   => $r['type'],
             ];
         }, $recentTx);
