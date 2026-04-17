@@ -12,7 +12,10 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
         // Total items
         $totalItems = $db->query("SELECT COUNT(*) FROM items WHERE is_active=1")->fetchColumn();
 
-        // Low stock items
+        // Total suppliers
+        $totalSuppliers = $db->query("SELECT COUNT(*) FROM suppliers WHERE is_active=1")->fetchColumn();
+
+        // Critical/Low stock items
         $lowStockQ = "SELECT COUNT(*) FROM items i
                       JOIN item_stocks s ON s.item_id=i.id
                       WHERE i.is_active=1 AND s.current_stock <= i.min_stock AND i.min_stock > 0";
@@ -34,6 +37,25 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
         // Recent outbound (last 7 days)
         $recentOutbound = $db->query("SELECT COUNT(*) FROM outbound_transactions WHERE created_at >= DATE_SUB(NOW(),INTERVAL 7 DAY)")->fetchColumn();
 
+        // Recent transactions list (last 10, inbound + outbound combined)
+        $recentTx = $db->query("
+            SELECT transaction_number AS ref, status, created_at AS date, 'inbound' AS type
+            FROM inbound_transactions
+            UNION ALL
+            SELECT transaction_number AS ref, status, created_at AS date, 'outbound' AS type
+            FROM outbound_transactions
+            ORDER BY date DESC
+            LIMIT 10
+        ")->fetchAll();
+        $recentTransactions = array_map(function($r) {
+            return [
+                'ref'    => $r['ref'],
+                'status' => $r['status'],
+                'date'   => date('d M Y', strtotime($r['date'])),
+                'type'   => $r['type'],
+            ];
+        }, $recentTx);
+
         // Monthly inbound trend (12 months)
         $trend = $db->query("
             SELECT DATE_FORMAT(created_at,'%Y-%m') AS month,
@@ -46,7 +68,7 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
 
         // Top 5 items by outbound (30 days)
         $topItems = $db->query("
-            SELECT i.name, i.sku, SUM(oi.qty_issued) AS total_out
+            SELECT i.name, i.sku, SUM(oi.quantity) AS total_out
             FROM outbound_items oi
             JOIN items i ON i.id=oi.item_id
             JOIN outbound_transactions t ON t.id=oi.transaction_id
@@ -72,16 +94,19 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
         ")->fetchAll();
 
         respond([
-            'total_items'      => (int)$totalItems,
-            'low_stock'        => (int)$lowStock,
-            'pending_inbound'  => (int)$pendingInbound,
-            'pending_requests' => (int)$pendingRequests,
-            'stock_value'      => (float)$stockValue,
-            'recent_inbound'   => (int)$recentInbound,
-            'recent_outbound'  => (int)$recentOutbound,
-            'trend'            => $trend,
-            'top_items'        => $topItems,
-            'low_stock_items'  => $lowStockList,
+            'total_items'          => (int)$totalItems,
+            'critical_items'       => (int)$lowStock,
+            'low_stock'            => (int)$lowStock,
+            'total_suppliers'      => (int)$totalSuppliers,
+            'pending_inbound'      => (int)$pendingInbound,
+            'pending_requests'     => (int)$pendingRequests,
+            'stock_value'          => (float)$stockValue,
+            'recent_inbound'       => (int)$recentInbound,
+            'recent_outbound'      => (int)$recentOutbound,
+            'recent_transactions'  => $recentTransactions,
+            'trend'                => $trend,
+            'top_items'            => $topItems,
+            'low_stock_items'      => $lowStockList,
         ]);
         return;
     }

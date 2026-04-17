@@ -52,11 +52,15 @@ function handleAuth(string $method, string $uri): void {
         unset($user['password_hash']);
         $user['warehouses'] = $warehouses;
 
-        respond([
-            'token' => $token,
-            'user'  => $user,
-        ]);
-        return;
+        // Return flat JSON (no wrapper) — frontend interceptor returns response.data directly
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'token'         => $token,
+            'refresh_token' => $token,
+            'user'          => $user,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
     // POST /auth/refresh
@@ -77,8 +81,10 @@ function handleAuth(string $method, string $uri): void {
             'name'  => $user['name'],
         ]);
 
-        respond(['token' => $token]);
-        return;
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode(['token' => $token], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
     respondError('Auth route not found', 404);
