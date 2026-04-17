@@ -42,7 +42,7 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
             SELECT ref_number AS ref, status, created_at AS date, 'inbound' AS type
             FROM inbound_transactions
             UNION ALL
-            SELECT transaction_number AS ref, status, created_at AS date, 'outbound' AS type
+            SELECT ref_number AS ref, status, created_at AS date, 'outbound' AS type
             FROM outbound_transactions
             ORDER BY date DESC
             LIMIT 10
