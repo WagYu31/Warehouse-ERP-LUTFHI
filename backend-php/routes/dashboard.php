@@ -68,7 +68,7 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
 
         // Top 5 items by outbound (30 days)
         $topItems = $db->query("
-            SELECT i.name, i.sku, SUM(oi.quantity) AS total_out
+            SELECT i.name, i.sku, SUM(oi.qty_issued) AS total_out
             FROM outbound_items oi
             JOIN items i ON i.id=oi.item_id
             JOIN outbound_transactions t ON t.id=oi.transaction_id
