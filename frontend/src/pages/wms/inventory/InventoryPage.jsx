@@ -10,18 +10,20 @@ import {
 const COLS = [
   { key: 'sku',           label: 'SKU' },
   { key: 'name',          label: 'Nama Item' },
-  { key: 'category',      label: 'Kategori' },
-  { key: 'unit',          label: 'Satuan' },
+  { key: 'category_name', label: 'Kategori' },
+  { key: 'unit_name',     label: 'Satuan', render: (v, r) => (
+    <span>{v ?? '—'}{r.unit_abbreviation ? ` (${r.unit_abbreviation})` : ''}</span>
+  )},
   { key: 'current_stock', label: 'Stok', render: (v, r) => (
     <div>
-      <span className="text-white font-semibold">{v ?? 0}</span>
+      <span className={`font-semibold ${Number(v??0) <= Number(r.min_stock) ? 'text-red-400' : 'text-white'}`}>{v ?? 0}</span>
       <span className="text-slate-600 text-xs ml-1">/ min {r.min_stock}</span>
     </div>
   )},
   { key: 'price', label: 'Harga', render: v => (
     <span className="text-slate-300">Rp {Number(v||0).toLocaleString('id-ID')}</span>
   )},
-  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
+  { key: 'is_active', label: 'Status', render: v => <StatusBadge value={v == '1' || v === true ? 'active' : 'inactive'} /> },
 ]
 
 export default function InventoryPage() {
@@ -95,7 +97,7 @@ export default function InventoryPage() {
         <SearchBar value={search} onChange={setSearch} placeholder="Cari SKU atau nama item..." />
         <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium whitespace-nowrap">
           <AlertTriangle size={12} />
-          {data.filter(d => d.status === 'kritis').length} kritis
+          {data.filter(d => Number(d.current_stock??0) <= Number(d.min_stock??0) && Number(d.min_stock??0) > 0).length} kritis
         </div>
       </div>
 
