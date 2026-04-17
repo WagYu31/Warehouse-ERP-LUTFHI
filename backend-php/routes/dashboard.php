@@ -39,7 +39,7 @@ function handleDashboard(string $method, string $uri, array $user, array &$param
 
         // Recent transactions list (last 10, inbound + outbound combined)
         $recentTx = $db->query("
-            SELECT transaction_number AS ref, status, created_at AS date, 'inbound' AS type
+            SELECT ref_number AS ref, status, created_at AS date, 'inbound' AS type
             FROM inbound_transactions
             UNION ALL
             SELECT transaction_number AS ref, status, created_at AS date, 'outbound' AS type
