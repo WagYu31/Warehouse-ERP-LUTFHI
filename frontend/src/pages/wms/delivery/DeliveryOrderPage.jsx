@@ -7,12 +7,12 @@ import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Input,
 const STATUS_MAP = { pending: 'warning', dispatched: 'info', delivered: 'success', cancelled: 'danger' }
 
 const COLS = [
-  { key: 'do_number', label: 'No. Surat Jalan', render: v => <span className="text-blue-400 font-mono text-sm">{v}</span> },
-  { key: 'delivery_date', label: 'Tanggal' },
-  { key: 'recipient_name', label: 'Penerima' },
-  { key: 'created_by', label: 'Dibuat Oleh' },
-  { key: 'outbound_ref', label: 'Ref. Outbound', render: v => v ? <span className="text-slate-400 text-xs">{v}</span> : '—' },
-  { key: 'status', label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_MAP} /> },
+  { key: 'ref_number', label: 'No. Surat Jalan', render: v => <span className="text-blue-400 font-mono text-sm">{v}</span> },
+  { key: 'delivery_date', label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'destination', label: 'Tujuan', render: v => <span className="text-slate-300 truncate max-w-xs block">{v || '—'}</span> },
+  { key: 'warehouse_name', label: 'Gudang' },
+  { key: 'created_by_name', label: 'Dibuat Oleh' },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function DeliveryOrderPage() {
