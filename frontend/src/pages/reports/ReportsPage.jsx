@@ -40,7 +40,15 @@ function KartuStokTab() {
     setLoading(true)
     try {
       const res = await api.get(`/reports/kartu-stok?item_id=${itemId}&warehouse_id=${warehouseId}&from=${from}&to=${to}`)
-      setData(res)
+      const raw = res.data || res
+      // Merge inbound + outbound into unified mutations
+      const mutations = []
+      ;(raw.inbound || []).forEach(r => mutations.push({ date: r.date, ref: r.ref_number, type: 'MASUK', in: r.qty || r.qty_received || 0, out: 0, warehouse: r.party || '—' }))
+      ;(raw.outbound || []).forEach(r => mutations.push({ date: r.date, ref: r.ref_number, type: 'KELUAR', in: 0, out: r.qty || r.qty_issued || 0, warehouse: r.party || '—' }))
+      mutations.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      let balance = 0
+      mutations.forEach(m => { balance += m.in - m.out; m.balance = balance })
+      setData({ opening_stock: raw.current_stock || 0, data: mutations, item: raw.item })
     } catch { toast.error('Gagal memuat kartu stok') }
     finally { setLoading(false) }
   }
@@ -210,7 +218,7 @@ function StockValuationTab() {
       <div className="flex justify-between items-center">
         <div className="p-4 rounded-2xl border border-gold-500/20 bg-gold-500/10">
           <p className="text-xs text-gold-400 font-semibold mb-1">Total Nilai Stok</p>
-          <p className="text-2xl font-bold text-gold-400">{fmt(data?.total_value || 0)}</p>
+          <p className="text-2xl font-bold text-gold-400">{fmt(data?.data?.grand_total || data?.grand_total || 0)}</p>
         </div>
         <button onClick={exportCSV}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.06] text-white hover:bg-white/[0.1] text-sm">
@@ -225,16 +233,16 @@ function StockValuationTab() {
             ))}
           </tr></thead>
           <tbody>
-            {(data?.data || []).map((item, i) => (
+            {(data?.data?.items || data?.items || []).map((item, i) => (
               <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                 <td className="px-4 py-2 text-white font-medium">{item.name}</td>
                 <td className="px-4 py-2 text-slate-400 font-mono text-xs">{item.sku}</td>
                 <td className="px-4 py-2 text-slate-400">{item.category}</td>
-                <td className="px-4 py-2 text-slate-300">{fmt(item.unit_price)}</td>
+                <td className="px-4 py-2 text-slate-300">{fmt(item.price || item.unit_price)}</td>
                 <td className="px-4 py-2">
-                  <span className={item.stock <= 0 ? 'text-red-400 font-bold' : 'text-white font-semibold'}>{item.stock}</span>
+                  <span className={(item.total_stock || item.stock || 0) <= 0 ? 'text-red-400 font-bold' : 'text-white font-semibold'}>{item.total_stock || item.stock || 0}</span>
                 </td>
-                <td className="px-4 py-2 text-gold-400 font-bold">{fmt(item.value)}</td>
+                <td className="px-4 py-2 text-gold-400 font-bold">{fmt(item.total_value || item.value)}</td>
               </tr>
             ))}
           </tbody>
@@ -276,19 +284,19 @@ function BudgetRealizationTab() {
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Tidak ada budget untuk tahun {year}</td></tr>
             ) : data.map((b, i) => (
               <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                <td className="px-4 py-2 text-white font-medium">{b.name}</td>
-                <td className="px-4 py-2 text-slate-400">{b.period}</td>
-                <td className="px-4 py-2 text-blue-400">{fmt(b.budget)}</td>
-                <td className="px-4 py-2 text-orange-400 font-semibold">{fmt(b.spent)}</td>
+                <td className="px-4 py-2 text-white font-medium">{b.department_name || b.name}</td>
+                <td className="px-4 py-2 text-slate-400">{b.budget_year || b.period}</td>
+                <td className="px-4 py-2 text-blue-400">{fmt(b.total_budget || b.budget)}</td>
+                <td className="px-4 py-2 text-orange-400 font-semibold">{fmt(b.used_budget || b.spent)}</td>
                 <td className="px-4 py-2 text-emerald-400">{fmt(b.remaining)}</td>
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-white/[0.08] rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${b.pct_used>90?'bg-red-500':b.pct_used>70?'bg-orange-500':'bg-emerald-500'}`}
-                        style={{width: `${Math.min(b.pct_used, 100)}%`}} />
+                      <div className={`h-full rounded-full transition-all ${(b.utilization_pct||b.pct_used||0)>90?'bg-red-500':(b.utilization_pct||b.pct_used||0)>70?'bg-orange-500':'bg-emerald-500'}`}
+                        style={{width: `${Math.min(b.utilization_pct || b.pct_used || 0, 100)}%`}} />
                     </div>
-                    <span className={`text-xs font-bold ${b.pct_used>90?'text-red-400':b.pct_used>70?'text-orange-400':'text-emerald-400'}`}>
-                      {b.pct_used}%
+                    <span className={`text-xs font-bold ${(b.utilization_pct||b.pct_used||0)>90?'text-red-400':(b.utilization_pct||b.pct_used||0)>70?'text-orange-400':'text-emerald-400'}`}>
+                      {b.utilization_pct || b.pct_used || 0}%
                     </span>
                   </div>
                 </td>
