@@ -6,12 +6,13 @@ import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormFi
 import { useAuthStore } from '@/store/authStore'
 
 const COLS = [
-  { key: 'spb_number',  label: 'No. SPB', render: v => <span className="text-blue-400 font-mono text-sm">{v}</span> },
-  { key: 'needed_date', label: 'Tgl. Butuh' },
-  { key: 'purpose',     label: 'Keperluan', render: v => <span className="text-slate-300 truncate max-w-xs block">{v}</span> },
-  { key: 'priority',    label: 'Prioritas', render: v => <StatusBadge value={v === 'urgent' ? 'high' : v === 'normal' ? 'normal_p' : 'low'} /> },
-  { key: 'requester',   label: 'Pemohon' },
-  { key: 'status',      label: 'Status', render: v => <StatusBadge value={v} /> },
+  { key: 'ref_number',          label: 'No. SPB', render: v => <span className="text-blue-400 font-mono text-sm">{v}</span> },
+  { key: 'required_date',       label: 'Tgl. Butuh', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'purpose',             label: 'Keperluan', render: v => <span className="text-slate-300 truncate max-w-xs block">{v || '—'}</span> },
+  { key: 'priority',            label: 'Prioritas', render: v => <StatusBadge value={v === 'urgent' ? 'high' : v === 'normal' ? 'normal_p' : 'low'} /> },
+  { key: 'requested_by_name',   label: 'Pemohon' },
+  { key: 'item_count',          label: 'Jumlah Item' },
+  { key: 'status',              label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function RequestsPage() {
@@ -23,8 +24,8 @@ export default function RequestsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
-  const [form, setForm]       = useState({ needed_date:'', purpose:'', priority:'normal', warehouse_id:'', notes:'' })
-  const [lines, setLines]     = useState([{ item_id:'', qty:1 }])
+  const [form, setForm]       = useState({ required_date:'', purpose:'', priority:'normal', department_id:'', notes:'' })
+  const [lines, setLines]     = useState([{ item_id:'', qty_requested:1 }])
   const canApprove = ['admin','manager'].includes(user?.role)
 
   const load = async () => {
@@ -32,7 +33,7 @@ export default function RequestsPage() {
     try {
       const [r, i, w] = await Promise.all([api.get(`/requests?status=${statusFilter}`), api.get('/items'), api.get('/warehouses')])
       let d = r.data || []
-      if (search) d = d.filter(x => x.spb_number?.toLowerCase().includes(search.toLowerCase()) || x.purpose?.toLowerCase().includes(search.toLowerCase()))
+      if (search) d = d.filter(x => x.ref_number?.toLowerCase().includes(search.toLowerCase()) || x.purpose?.toLowerCase().includes(search.toLowerCase()))
       setData(d); setItems(i.data||[]); setWarehouses(w.data||[])
     } catch { toast.error('Gagal memuat data') }
     finally { setLoading(false) }
@@ -40,14 +41,14 @@ export default function RequestsPage() {
 
   useEffect(() => { load() }, [search, statusFilter])
 
-  const addLine = () => setLines([...lines, { item_id:'', qty:1 }])
+  const addLine = () => setLines([...lines, { item_id:'', qty_requested:1 }])
   const rmLine  = (i) => setLines(lines.filter((_,idx) => idx !== i))
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx===i ? {...l, [k]: v} : l))
 
   const submit = async () => {
-    if (!form.needed_date || !form.purpose) { toast.error('Isi tanggal dan keperluan'); return }
+    if (!form.required_date || !form.purpose) { toast.error('Isi tanggal dan keperluan'); return }
     try {
-      await api.post('/requests', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty:+l.qty })) })
+      await api.post('/requests', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty_requested:+l.qty_requested })) })
       toast.success('SPB berhasil dibuat!'); setModal(false); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
@@ -99,7 +100,7 @@ export default function RequestsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Tanggal Dibutuhkan" required>
-              <Input type="date" value={form.needed_date} onChange={e => setForm({...form, needed_date:e.target.value})} />
+              <Input type="date" value={form.required_date} onChange={e => setForm({...form, required_date:e.target.value})} />
             </FormField>
             <FormField label="Prioritas">
               <Select value={form.priority} onChange={e => setForm({...form, priority:e.target.value})}>
@@ -134,7 +135,7 @@ export default function RequestsPage() {
                     </Select>
                   </div>
                   <div className="col-span-2">
-                    <Input type="number" min="1" value={ln.qty} onChange={e => setLine(idx,'qty',e.target.value)} placeholder="Qty" />
+                    <Input type="number" min="1" value={ln.qty_requested} onChange={e => setLine(idx,'qty_requested',e.target.value)} placeholder="Qty" />
                   </div>
                   <div className="col-span-1 flex justify-center">
                     {lines.length > 1 && <button onClick={() => rmLine(idx)} className="text-red-400">✕</button>}
