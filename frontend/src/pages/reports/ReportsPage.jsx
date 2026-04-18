@@ -29,19 +29,13 @@ function KartuStokTab() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    Promise.all([api.get('/items'), api.get('/warehouses')]).then(([i,w]) => {
-      setItems((i.data||i)||[]); setWarehouses((w.data||w)||[])
-    })
-  }, [])
-
-  const search = async () => {
-    if (!itemId) { toast.error('Pilih item terlebih dahulu'); return }
+  const doSearch = async (iid) => {
+    const targetId = iid || itemId
+    if (!targetId) return
     setLoading(true)
     try {
-      const res = await api.get(`/reports/kartu-stok?item_id=${itemId}&warehouse_id=${warehouseId}&from=${from}&to=${to}`)
+      const res = await api.get(`/reports/kartu-stok?item_id=${targetId}&warehouse_id=${warehouseId}&from=${from}&to=${to}`)
       const raw = res.data || res
-      // Merge inbound + outbound into unified mutations
       const mutations = []
       ;(raw.inbound || []).forEach(r => mutations.push({ date: r.date, ref: r.ref_number, type: 'MASUK', in: r.qty || r.qty_received || 0, out: 0, warehouse: r.party || '—' }))
       ;(raw.outbound || []).forEach(r => mutations.push({ date: r.date, ref: r.ref_number, type: 'KELUAR', in: 0, out: r.qty || r.qty_issued || 0, warehouse: r.party || '—' }))
@@ -52,6 +46,18 @@ function KartuStokTab() {
     } catch { toast.error('Gagal memuat kartu stok') }
     finally { setLoading(false) }
   }
+
+  useEffect(() => {
+    Promise.all([api.get('/items'), api.get('/warehouses')]).then(([i,w]) => {
+      const itemList = (i.data||i)||[]
+      setItems(itemList); setWarehouses((w.data||w)||[])
+      // Auto-select first item and load data
+      if (itemList.length > 0) {
+        setItemId(itemList[0].id)
+        doSearch(itemList[0].id)
+      }
+    })
+  }, [])
 
   return (
     <div className="space-y-4">
@@ -83,7 +89,7 @@ function KartuStokTab() {
             <input type="date" value={to} onChange={e => setTo(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none" />
           </div>
-          <button onClick={search} disabled={loading}
+          <button onClick={() => doSearch()} disabled={loading}
             className="px-4 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">
             {loading ? '...' : 'Cari'}
           </button>
