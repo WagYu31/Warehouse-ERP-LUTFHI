@@ -20,21 +20,30 @@ function TabButton({ active, onClick, icon: Icon, label }) {
 function KartuStokTab() {
   const [items, setItems] = useState([])
   const [warehouses, setWarehouses] = useState([])
+  const [allStock, setAllStock] = useState([])
   const [itemId, setItemId] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,10)
   })
   const [to, setTo] = useState(new Date().toISOString().slice(0,10))
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const doSearch = async (iid) => {
-    const targetId = iid || itemId
-    if (!targetId) return
+  useEffect(() => {
+    Promise.all([api.get('/items'), api.get('/warehouses'), api.get('/reports/stock-valuation')]).then(([i,w,sv]) => {
+      setItems((i.data||i)||[]); setWarehouses((w.data||w)||[])
+      const valData = sv.data || sv
+      setAllStock(valData.items || valData.data?.items || [])
+    }).catch(() => toast.error('Gagal memuat data'))
+    .finally(() => setLoading(false))
+  }, [])
+
+  const doSearch = async () => {
+    if (!itemId) { setDetail(null); return }
     setLoading(true)
     try {
-      const res = await api.get(`/reports/kartu-stok?item_id=${targetId}&warehouse_id=${warehouseId}&from=${from}&to=${to}`)
+      const res = await api.get(`/reports/kartu-stok?item_id=${itemId}&warehouse_id=${warehouseId}&from=${from}&to=${to}`)
       const raw = res.data || res
       const mutations = []
       ;(raw.inbound || []).forEach(r => mutations.push({ date: r.date, ref: r.ref_number, type: 'MASUK', in: r.qty || r.qty_received || 0, out: 0, warehouse: r.party || '—' }))
@@ -42,31 +51,21 @@ function KartuStokTab() {
       mutations.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
       let balance = 0
       mutations.forEach(m => { balance += m.in - m.out; m.balance = balance })
-      setData({ opening_stock: raw.current_stock || 0, data: mutations, item: raw.item })
+      setDetail({ opening_stock: raw.current_stock || 0, data: mutations, item: raw.item })
     } catch { toast.error('Gagal memuat kartu stok') }
     finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    Promise.all([api.get('/items'), api.get('/warehouses')]).then(([i,w]) => {
-      const itemList = (i.data||i)||[]
-      setItems(itemList); setWarehouses((w.data||w)||[])
-      // Auto-select first item and load data
-      if (itemList.length > 0) {
-        setItemId(itemList[0].id)
-        doSearch(itemList[0].id)
-      }
-    })
-  }, [])
+  const resetFilter = () => { setItemId(''); setWarehouseId(''); setDetail(null) }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+      <div className="grid grid-cols-5 gap-3 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Item *</label>
+          <label className="text-xs text-slate-400 block mb-1">Item (filter)</label>
           <select value={itemId} onChange={e => setItemId(e.target.value)}
             className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none">
-            <option value="">Pilih item</option>
+            <option value="">Semua item</option>
             {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
         </div>
@@ -83,35 +82,37 @@ function KartuStokTab() {
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none" />
         </div>
+        <div>
+          <label className="text-xs text-slate-400 block mb-1">Sampai</label>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none" />
+        </div>
         <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="text-xs text-slate-400 block mb-1">Sampai</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none" />
-          </div>
-          <button onClick={() => doSearch()} disabled={loading}
+          <button onClick={doSearch} disabled={loading}
             className="px-4 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">
             {loading ? '...' : 'Cari'}
           </button>
+          {detail && <button onClick={resetFilter} className="px-3 py-2 rounded-xl border border-white/[0.08] text-slate-400 text-sm hover:text-white">Reset</button>}
         </div>
       </div>
 
-      {data && (
+      {/* Detail view — per item mutation */}
+      {detail && (
         <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
           <div className="px-5 py-3 border-b border-white/[0.06] flex justify-between items-center">
-            <span className="text-white font-semibold">Kartu Stok</span>
-            <span className="text-slate-400 text-sm">Stok Awal: <span className="text-white font-semibold">{data.opening_stock}</span></span>
+            <span className="text-white font-semibold">Kartu Stok — {detail.item?.name || 'Item'}</span>
+            <span className="text-slate-400 text-sm">Stok Saat Ini: <span className="text-white font-semibold">{detail.opening_stock}</span></span>
           </div>
           <table className="w-full text-sm">
             <thead><tr className="border-b border-white/[0.06]">
-              {['Tanggal','Referensi','Tipe','Masuk','Keluar','Saldo','Gudang'].map(h => (
+              {['Tanggal','Referensi','Tipe','Masuk','Keluar','Saldo','Gudang/Tujuan'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs text-slate-400 uppercase">{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {data.data.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Tidak ada mutasi</td></tr>
-              ) : data.data.map((m, i) => (
+              {detail.data.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Tidak ada mutasi dalam periode ini</td></tr>
+              ) : detail.data.map((m, i) => (
                 <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                   <td className="px-4 py-2 text-slate-300">{m.date}</td>
                   <td className="px-4 py-2 text-slate-400 font-mono text-xs">{m.ref}</td>
@@ -122,6 +123,42 @@ function KartuStokTab() {
                   <td className="px-4 py-2 text-red-400 font-semibold">{m.out > 0 ? m.out : '—'}</td>
                   <td className="px-4 py-2 text-white font-bold">{m.balance}</td>
                   <td className="px-4 py-2 text-slate-400">{m.warehouse}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Default view — all items stock */}
+      {!detail && (
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+          <div className="px-5 py-3 border-b border-white/[0.06] flex justify-between items-center">
+            <span className="text-white font-semibold">Ringkasan Stok Semua Item</span>
+            <span className="text-slate-400 text-sm">{allStock.length} item</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-white/[0.06]">
+              {['Item','SKU','Kategori','Satuan','Harga','Stok','Nilai Stok'].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs text-slate-400 uppercase">{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Memuat...</td></tr>
+              ) : allStock.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Tidak ada data stok</td></tr>
+              ) : allStock.map((s, i) => (
+                <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02] cursor-pointer" onClick={() => { setItemId(s.id); }}>
+                  <td className="px-4 py-2 text-white font-medium">{s.name}</td>
+                  <td className="px-4 py-2 text-slate-400 font-mono text-xs">{s.sku}</td>
+                  <td className="px-4 py-2 text-slate-400">{s.category || '—'}</td>
+                  <td className="px-4 py-2 text-slate-400">{s.unit || '—'}</td>
+                  <td className="px-4 py-2 text-slate-300">{'Rp ' + Number(s.price||0).toLocaleString('id-ID')}</td>
+                  <td className="px-4 py-2">
+                    <span className={`font-semibold ${(s.total_stock||0) <= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{s.total_stock || 0}</span>
+                  </td>
+                  <td className="px-4 py-2 text-gold-400 font-bold">{'Rp ' + Number(s.total_value||0).toLocaleString('id-ID')}</td>
                 </tr>
               ))}
             </tbody>
