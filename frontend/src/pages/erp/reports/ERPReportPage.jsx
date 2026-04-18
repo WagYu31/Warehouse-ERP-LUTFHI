@@ -26,11 +26,11 @@ export default function ERPReportPage() {
       const budgets = Array.isArray(budgetRes)  ? budgetRes  : (budgetRes.data  || [])
       const stocks  = Array.isArray(stockRes)   ? stockRes   : (stockRes.data   || [])
 
-      const totalPOValue   = pos.reduce((a, p) => a + (+p.total||0), 0)
-      const totalPaid      = invs.filter(i => i.status==='paid').reduce((a,i) => a+((+i.total)||0), 0)
-      const totalUnpaid    = invs.filter(i => i.status==='unpaid'||i.status==='overdue').reduce((a,i) => a+((+i.total)||0), 0)
-      const totalBudget    = budgets.reduce((a,b) => a + (+b.total||0), 0)
-      const totalSpent     = budgets.reduce((a,b) => a + (+b.spent||0), 0)
+      const totalPOValue   = pos.reduce((a, p) => a + (+p.total_amount||+p.total||0), 0)
+      const totalPaid      = invs.filter(i => i.status==='paid').reduce((a,i) => a+((+i.total_amount)||(+i.total)||0), 0)
+      const totalUnpaid    = invs.filter(i => i.status==='unpaid'||i.status==='overdue'||i.status==='partial').reduce((a,i) => a+(((+i.total_amount)||(+i.total)||0) - ((+i.amount_paid)||0)), 0)
+      const totalBudget    = budgets.reduce((a,b) => a + (+b.total_budget||+b.total||0), 0)
+      const totalSpent     = budgets.reduce((a,b) => a + (+b.used_budget||+b.spent||0), 0)
 
       setData({
         pos, invs, budgets, stocks,
@@ -49,7 +49,7 @@ export default function ERPReportPage() {
           unpaid:  invs.filter(i=>i.status==='unpaid').length,
           overdue: invs.filter(i=>i.status==='overdue').length,
         },
-        topBudgets: [...budgets].sort((a,b)=>b.spent-a.spent).slice(0,5),
+        topBudgets: [...budgets].sort((a,b)=>(+b.used_budget||+b.spent||0)-(+a.used_budget||+a.spent||0)).slice(0,5),
       })
     } catch { toast.error('Gagal memuat laporan') }
     finally { setLoading(false) }
@@ -168,12 +168,14 @@ export default function ERPReportPage() {
         {/* Per budget */}
         <div className="space-y-3">
           {data?.topBudgets?.map(b => {
-            const pct = b.total > 0 ? Math.min(Math.round(b.spent/b.total*100), 100) : 0
+            const total = (+b.total_budget||+b.total||0)
+            const spent = (+b.used_budget||+b.spent||0)
+            const pct = total > 0 ? Math.min(Math.round(spent/total*100), 100) : 0
             return (
               <div key={b.id}>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-300 truncate max-w-[60%]">{b.name}</span>
-                  <span className={pct > 80 ? 'text-red-400' : 'text-slate-400'}>{fmtShort(b.spent)} / {fmtShort(b.total)}</span>
+                  <span className="text-slate-300 truncate max-w-[60%]">{b.department_name || b.name}</span>
+                  <span className={pct > 80 ? 'text-red-400' : 'text-slate-400'}>{fmtShort(spent)} / {fmtShort(total)}</span>
                 </div>
                 <div className="w-full bg-white/5 rounded-full h-1.5">
                   <div className={`h-1.5 rounded-full ${pct>80?'bg-red-500':pct>60?'bg-amber-500':'bg-emerald-500'}`} style={{width:`${pct}%`}} />
