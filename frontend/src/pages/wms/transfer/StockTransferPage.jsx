@@ -6,10 +6,9 @@ import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Select
 
 const COLS = [
   { key: 'ref_number',    label: 'No. Transfer', render: v => <span className="text-blue-400 font-mono text-sm">{v}</span> },
-  { key: 'transfer_date', label: 'Tanggal', render: v => v || '—' },
-  { key: 'from_warehouse',label: 'Dari Gudang', render: v => <span className="text-orange-400">{v}</span> },
-  { key: 'to_warehouse',  label: 'Ke Gudang', render: v => <span className="text-emerald-400">{v}</span> },
-  { key: 'requested_by',  label: 'Oleh' },
+  { key: 'transfer_date', label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'from_warehouse',label: 'Dari Gudang', render: v => <span className="text-orange-400">{v || '—'}</span> },
+  { key: 'to_warehouse',  label: 'Ke Gudang', render: v => <span className="text-emerald-400">{v || '—'}</span> },
   { key: 'status',        label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
@@ -20,7 +19,7 @@ export default function StockTransferPage() {
   const [itemStocks, setItemStocks] = useState([])
   const [loading, setLoading]     = useState(true)
   const [modal, setModal]         = useState(false)
-  const [form, setForm]           = useState({ from_warehouse_id: '', to_warehouse_id: '', notes: '' })
+  const [form, setForm]           = useState({ from_warehouse_id: '', to_warehouse_id: '', transfer_date: new Date().toISOString().slice(0,10), notes: '' })
   const [lines, setLines]         = useState([{ item_id: '', qty: 1 }])
 
   const load = async () => {

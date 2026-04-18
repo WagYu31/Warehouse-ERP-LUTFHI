@@ -13,15 +13,10 @@ const STATUS_COLORS = {
 
 const COLS = [
   { key: 'ref_number', label: 'No. Opname', render: v => <span className="text-gold-400 font-mono text-sm">{v}</span> },
-  { key: 'warehouse',  label: 'Gudang', render: (_, r) => r.warehouse?.name || r.warehouse_id || '—' },
-  { key: 'opname_date',label: 'Tanggal', render: v => v?.slice(0,10) || '—' },
-  { key: 'conducted_by', label: 'Petugas', render: (_, r) => r.conducted_by_user?.name || '—' },
-  { key: 'total_items', label: 'Total Item', render: v => <span className="font-semibold">{v ?? '—'}</span> },
-  { key: 'discrepancy_count', label: 'Selisih', render: v => v > 0
-    ? <span className="text-red-400 font-semibold">{v} item</span>
-    : <span className="text-emerald-400">✓ Sesuai</span>
-  },
-  { key: 'status', label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_COLORS} /> },
+  { key: 'warehouse_name',  label: 'Gudang', render: v => v || '—' },
+  { key: 'opname_date',label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'created_by_name', label: 'Petugas', render: v => v || '—' },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function OpnamePage() {
@@ -35,7 +30,7 @@ export default function OpnamePage() {
     setLoading(true)
     try {
       const [opRes, wRes] = await Promise.all([
-        api.get('/stock-opnames').catch(() => ({ data: [] })),
+        api.get('/opname').catch(() => ({ data: [] })),
         api.get('/warehouses'),
       ])
       const ops = Array.isArray(opRes) ? opRes : (opRes.data || [])
@@ -51,7 +46,7 @@ export default function OpnamePage() {
   const handleCreate = async () => {
     if (!form.warehouse_id) { toast.error('Pilih gudang'); return }
     try {
-      await api.post('/stock-opnames', form)
+      await api.post('/opname', form)
       toast.success('Opname berhasil dibuat')
       setModal(false)
       load()
