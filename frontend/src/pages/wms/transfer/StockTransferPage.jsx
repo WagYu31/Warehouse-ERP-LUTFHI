@@ -28,13 +28,11 @@ export default function StockTransferPage() {
       const [trf, w, i] = await Promise.all([
         api.get('/stock-transfers'),
         api.get('/warehouses'),
-        api.get('/item-stocks'),
+        api.get('/items'),
       ])
       setData(Array.isArray(trf) ? trf : (trf.data || []))
       setWarehouses(Array.isArray(w) ? w : (w.data || []))
-      setItemStocks(Array.isArray(i) ? i : (i.data || []))
-      const itemRes = await api.get('/items')
-      setItems(Array.isArray(itemRes) ? itemRes : (itemRes.data || []))
+      setItems(Array.isArray(i) ? i : (i.data || []))
     } catch { toast.error('Gagal memuat data') }
     finally { setLoading(false) }
   }
