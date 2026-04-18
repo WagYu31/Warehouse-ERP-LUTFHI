@@ -8,16 +8,17 @@ const STATUS_MAP = { pending: 'warning', approved: 'success', rejected: 'danger'
 const TYPE_LABEL = { to_supplier: '↩ Ke Supplier', from_customer: '↪ Dari Customer' }
 
 const COLS = [
-  { key: 'return_number', label: 'No. Retur', render: v => <span className="text-orange-400 font-mono text-sm">{v}</span> },
-  { key: 'return_date', label: 'Tanggal' },
-  { key: 'return_type', label: 'Tipe', render: v => (
+  { key: 'ref_number', label: 'No. Retur', render: v => <span className="text-orange-400 font-mono text-sm">{v}</span> },
+  { key: 'return_date', label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'type', label: 'Tipe', render: v => (
     <span className={`text-xs font-semibold ${v === 'to_supplier' ? 'text-yellow-400' : 'text-cyan-400'}`}>
       {TYPE_LABEL[v] || v}
     </span>
   )},
-  { key: 'supplier', label: 'Supplier', render: v => v || '—' },
+  { key: 'supplier_name', label: 'Supplier', render: v => v || '—' },
+  { key: 'warehouse_name', label: 'Gudang' },
   { key: 'reason', label: 'Alasan', render: v => <span className="text-slate-400 text-xs">{v?.slice(0,40)}{v?.length>40?'...':''}</span> },
-  { key: 'status', label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_MAP} /> },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function ReturnPage() {

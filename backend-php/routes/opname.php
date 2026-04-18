@@ -132,7 +132,7 @@ function handleReturns(string $method, string $uri, array $user, array &$params)
         requireRole($user, 'admin','staff','finance_procurement');
         $b = requireBody(); requireFields($b, ['return_date','type']);
         $id = generateUUID(); $ref = generateRef('RTN');
-        $db->prepare("INSERT INTO returns(id,ref_number,type,warehouse_id,supplier_id,return_date,reason,status,created_by) VALUES(?,?,?,?,?,?,'pending',?)")
+        $db->prepare("INSERT INTO returns(id,ref_number,type,warehouse_id,supplier_id,return_date,reason,status,created_by) VALUES(?,?,?,?,?,?,?,'pending',?)")
            ->execute([$id,$ref,$b['type'],$b['warehouse_id']??null,$b['supplier_id']??null,$b['return_date'],$b['reason']??null,$user['sub']]);
         respond(['id'=>$id,'ref_number'=>$ref]);
         return;
