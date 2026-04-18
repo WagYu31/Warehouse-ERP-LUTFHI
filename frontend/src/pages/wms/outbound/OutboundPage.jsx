@@ -5,10 +5,12 @@ import toast from 'react-hot-toast'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 
 const COLS = [
-  { key: 'ref_number',   label: 'No. OUT', render: v => <span className="text-orange-400 font-mono text-sm">{v}</span> },
-  { key: 'date',         label: 'Tanggal' },
-  { key: 'processed_by', label: 'Diproses Oleh' },
-  { key: 'status',       label: 'Status', render: v => <StatusBadge value={v} /> },
+  { key: 'ref_number',     label: 'No. OUT', render: v => <span className="text-orange-400 font-mono text-sm">{v}</span> },
+  { key: 'outbound_date',  label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'warehouse_name', label: 'Gudang' },
+  { key: 'issued_by_name', label: 'Diproses Oleh' },
+  { key: 'item_count',     label: 'Jumlah Item' },
+  { key: 'status',         label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function OutboundPage() {
@@ -18,8 +20,8 @@ export default function OutboundPage() {
   const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
-  const [form, setForm]       = useState({ warehouse_id:'', notes:'' })
-  const [lines, setLines]     = useState([{ item_id:'', qty:1 }])
+  const [form, setForm]       = useState({ warehouse_id:'', outbound_date: new Date().toISOString().slice(0,10), destination:'', notes:'' })
+  const [lines, setLines]     = useState([{ item_id:'', qty_issued:1 }])
 
   const load = async () => {
     setLoading(true)
@@ -34,14 +36,14 @@ export default function OutboundPage() {
 
   useEffect(() => { load() }, [search])
 
-  const addLine = () => setLines([...lines, { item_id:'', qty:1 }])
+  const addLine = () => setLines([...lines, { item_id:'', qty_issued:1 }])
   const rmLine  = (i) => setLines(lines.filter((_,idx) => idx !== i))
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx===i ? {...l, [k]: v} : l))
 
   const submit = async () => {
     if (!form.warehouse_id) { toast.error('Pilih gudang'); return }
     try {
-      await api.post('/outbound', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty:+l.qty })) })
+      await api.post('/outbound', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty_issued:+l.qty_issued })) })
       toast.success('Barang keluar dicatat!'); setModal(false); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
@@ -56,11 +58,19 @@ export default function OutboundPage() {
 
       <Modal open={modal} onClose={() => setModal(false)} title="Catat Barang Keluar" size="lg">
         <div className="space-y-5">
-          <FormField label="Gudang Asal" required>
-            <Select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id:e.target.value})}>
-              <option value="">Pilih gudang</option>
-              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Gudang Asal" required>
+              <Select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id:e.target.value})}>
+                <option value="">Pilih gudang</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Tanggal Keluar" required>
+              <Input type="date" value={form.outbound_date} onChange={e => setForm({...form, outbound_date:e.target.value})} />
+            </FormField>
+          </div>
+          <FormField label="Tujuan / Destinasi">
+            <Input value={form.destination} onChange={e => setForm({...form, destination:e.target.value})} placeholder="Departemen IT, Cabang Jakarta, dll." />
           </FormField>
 
           <div>
@@ -78,7 +88,7 @@ export default function OutboundPage() {
                     </Select>
                   </div>
                   <div className="col-span-3">
-                    <Input type="number" min="1" value={ln.qty} onChange={e => setLine(idx,'qty',e.target.value)} placeholder="Qty" />
+                    <Input type="number" min="1" value={ln.qty_issued} onChange={e => setLine(idx,'qty_issued',e.target.value)} placeholder="Qty" />
                   </div>
                   <div className="col-span-1 flex justify-center">
                     {lines.length > 1 && <button onClick={() => rmLine(idx)} className="text-red-400">✕</button>}
