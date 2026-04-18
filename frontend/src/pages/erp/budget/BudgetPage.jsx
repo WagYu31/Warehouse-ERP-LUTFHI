@@ -5,14 +5,16 @@ import toast from 'react-hot-toast'
 import { PageShell, PageHeader, DataTable, Modal, FormField, Input, Select } from '@/components/ui'
 
 const COLS = [
-  { key: 'name',         label: 'Nama Anggaran', render: v => <span className="text-white font-medium">{v}</span> },
-  { key: 'total',        label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
-  { key: 'spent',        label: 'Terpakai', render: v => <span className="text-orange-400">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
-  { key: 'period_start', label: 'Mulai', render: v => v || '—' },
-  { key: 'period_end',   label: 'Selesai', render: v => v || '—' },
+  { key: 'department_name', label: 'Departemen', render: v => <span className="text-white font-medium">{v || '—'}</span> },
+  { key: 'budget_year', label: 'Tahun', render: v => v || '—' },
+  { key: 'total_budget', label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
+  { key: 'used_budget', label: 'Terpakai', render: v => <span className="text-orange-400">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
+  { key: 'notes', label: 'Catatan', render: v => <span className="text-slate-400 text-xs">{v || '—'}</span> },
   { key: 'id', label: 'Sisa', render: (v,r) => {
-    const sisa = (r.total||0) - (r.spent||0)
-    const pct  = r.total > 0 ? ((r.spent||0)/r.total*100) : 0
+    const total = +(r.total_budget||r.total||0)
+    const spent = +(r.used_budget||r.spent||0)
+    const sisa = total - spent
+    const pct  = total > 0 ? (spent/total*100) : 0
     return (
       <div>
         <div className={`text-sm font-semibold ${pct > 80 ? 'text-red-400' : 'text-emerald-400'}`}>Rp {sisa.toLocaleString('id-ID')}</div>

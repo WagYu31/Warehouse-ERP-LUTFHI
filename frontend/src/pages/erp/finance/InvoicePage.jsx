@@ -10,9 +10,11 @@ const STATUS_COLOR = { paid: 'success', unpaid: 'warning', overdue: 'danger', pa
 
 const COLS = [
   { key: 'invoice_number', label: 'No. Invoice', render: v => <span className="text-emerald-400 font-mono text-sm">{v}</span> },
-  { key: 'due_date',  label: 'Jatuh Tempo', render: v => v || '—' },
-  { key: 'total',     label: 'Total', render: v => <span className="text-white font-semibold">{fmt(v)}</span> },
-  { key: 'status',    label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_COLOR} /> },
+  { key: 'supplier_name', label: 'Supplier', render: v => v || '—' },
+  { key: 'due_date',  label: 'Jatuh Tempo', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'total_amount', label: 'Total', render: v => <span className="text-white font-semibold">{fmt(v)}</span> },
+  { key: 'amount_paid', label: 'Dibayar', render: v => <span className="text-emerald-400">{fmt(v)}</span> },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
 export default function InvoicePage() {
@@ -150,7 +152,7 @@ export default function InvoicePage() {
               </div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-slate-400">Total</span>
-                <span className="text-white font-semibold">{fmt(selectedInv.total)}</span>
+                <span className="text-white font-semibold">{fmt(selectedInv.total_amount || selectedInv.total)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Status</span>
