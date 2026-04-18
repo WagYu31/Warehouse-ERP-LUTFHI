@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
 
 const STATUS_MAP = { pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }
-const TYPE_LABEL = { to_supplier: '↩ Ke Supplier', from_customer: '↪ Dari Customer' }
+const TYPE_LABEL = { inbound: '↪ Retur Masuk', outbound: '↩ Retur Keluar', to_supplier: '↩ Ke Supplier', from_customer: '↪ Dari Customer' }
 
 const COLS = [
   { key: 'ref_number', label: 'No. Retur', render: v => <span className="text-orange-400 font-mono text-sm">{v}</span> },
