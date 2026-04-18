@@ -105,7 +105,7 @@ function KartuStokTab() {
           </div>
           <table className="w-full text-sm">
             <thead><tr className="border-b border-white/[0.06]">
-              {['Tanggal','Referensi','Tipe','Masuk','Keluar','Saldo','Gudang/Tujuan'].map(h => (
+              {['Tanggal','Referensi','Tipe','Masuk','Keluar','Sisa Stok','Gudang/Tujuan'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs text-slate-400 uppercase">{h}</th>
               ))}
             </tr></thead>
