@@ -9,10 +9,10 @@ const STATUS_PO = { draft: 'warning', sent: 'info', partial: 'warning', complete
 
 const COLS = [
   { key: 'po_number', label: 'No. PO', render: v => <span className="text-purple-400 font-mono text-sm">{v}</span> },
-  { key: 'date',      label: 'Tanggal', render: v => v || '—' },
-  { key: 'supplier',  label: 'Supplier', render: v => v || '—' },
-  { key: 'total',     label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
-  { key: 'status',    label: 'Status', render: v => <StatusBadge status={v} colorMap={STATUS_PO} /> },
+  { key: 'order_date', label: 'Tanggal', render: v => v && v !== '0000-00-00' ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
+  { key: 'supplier_name', label: 'Supplier', render: v => v || '—' },
+  { key: 'total_amount', label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
   { key: 'id', label: 'Print', render: (id, row) => (
     <button onClick={() => printPurchaseOrder(row)}
       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-slate-400 hover:text-white text-xs">
@@ -37,7 +37,7 @@ export default function PurchaseOrderPage() {
     try {
       const [po, s, i, w] = await Promise.all([api.get('/erp/purchase-orders'), api.get('/suppliers'), api.get('/items'), api.get('/warehouses')])
       let d = po.data || []
-      if (search) d = d.filter(r => r.po_number?.toLowerCase().includes(search.toLowerCase()) || r.supplier?.toLowerCase().includes(search.toLowerCase()))
+      if (search) d = d.filter(r => r.po_number?.toLowerCase().includes(search.toLowerCase()) || r.supplier_name?.toLowerCase().includes(search.toLowerCase()))
       setData(d); setSuppliers(s.data||[]); setItems(i.data||[]); setWarehouses(w.data||[])
     } catch { toast.error('Gagal memuat PO') }
     finally { setLoading(false) }
