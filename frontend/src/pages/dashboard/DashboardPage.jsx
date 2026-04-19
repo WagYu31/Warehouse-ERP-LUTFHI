@@ -3,18 +3,20 @@ import { Link } from 'react-router-dom'
 import {
   Package, TrendingDown, ArrowDownCircle, ArrowUpCircle,
   ClipboardList, AlertTriangle, DollarSign, Warehouse,
-  TrendingUp, RefreshCcw
+  TrendingUp, RefreshCcw, FileText, ShoppingCart, PiggyBank,
+  BarChart3, Users, Truck, RotateCcw
 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
-function StatCard({ icon: Icon, label, value, sub, color = 'gold', trend }) {
+function StatCard({ icon: Icon, label, value, sub, color = 'gold' }) {
   const colors = {
     gold:   'from-yellow-500/20 to-amber-600/10 border-yellow-500/20 text-yellow-400',
     red:    'from-red-500/20 to-rose-600/10 border-red-500/20 text-red-400',
     blue:   'from-blue-500/20 to-cyan-600/10 border-blue-500/20 text-blue-400',
     green:  'from-emerald-500/20 to-teal-600/10 border-emerald-500/20 text-emerald-400',
     purple: 'from-purple-500/20 to-violet-600/10 border-purple-500/20 text-purple-400',
+    orange: 'from-orange-500/20 to-red-600/10 border-orange-500/20 text-orange-400',
   }
   return (
     <div className={`relative rounded-2xl border bg-gradient-to-br p-5 ${colors[color]} overflow-hidden`}>
@@ -55,17 +57,90 @@ function RecentRow({ item }) {
   )
 }
 
+// ── Quick Action links per role ──
+const ACTIONS = {
+  admin: [
+    { label: 'Catat Barang Masuk',  icon: ArrowDownCircle,  to: '/inbound',   color: 'text-blue-400 bg-blue-500/10' },
+    { label: 'Catat Barang Keluar', icon: ArrowUpCircle,    to: '/outbound',  color: 'text-orange-400 bg-orange-500/10' },
+    { label: 'Buat SPB',            icon: ClipboardList,    to: '/requests',  color: 'text-gold-400 bg-gold-500/10' },
+    { label: 'Cek Inventaris',      icon: Package,          to: '/inventory', color: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Stock Opname',        icon: RefreshCcw,       to: '/opname',    color: 'text-purple-400 bg-purple-500/10' },
+    { label: 'Kelola Pengguna',     icon: Users,            to: '/admin/users', color: 'text-cyan-400 bg-cyan-500/10' },
+  ],
+  staff: [
+    { label: 'Catat Barang Masuk',  icon: ArrowDownCircle,  to: '/inbound',   color: 'text-blue-400 bg-blue-500/10' },
+    { label: 'Catat Barang Keluar', icon: ArrowUpCircle,    to: '/outbound',  color: 'text-orange-400 bg-orange-500/10' },
+    { label: 'Cek Inventaris',      icon: Package,          to: '/inventory', color: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Stock Opname',        icon: RefreshCcw,       to: '/opname',    color: 'text-purple-400 bg-purple-500/10' },
+    { label: 'Transfer Stok',       icon: Truck,            to: '/stock-transfers', color: 'text-cyan-400 bg-cyan-500/10' },
+    { label: 'Retur Barang',        icon: RotateCcw,        to: '/returns',   color: 'text-red-400 bg-red-500/10' },
+  ],
+  finance_procurement: [
+    { label: 'Purchase Order',      icon: ShoppingCart,     to: '/erp/purchase-orders', color: 'text-purple-400 bg-purple-500/10' },
+    { label: 'Invoice',             icon: FileText,         to: '/erp/invoices',  color: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Budget',              icon: PiggyBank,        to: '/erp/budget',    color: 'text-gold-400 bg-gold-500/10' },
+    { label: 'Supplier',            icon: Users,            to: '/erp/suppliers', color: 'text-blue-400 bg-blue-500/10' },
+    { label: 'Laporan ERP',         icon: BarChart3,        to: '/erp/reports',   color: 'text-orange-400 bg-orange-500/10' },
+    { label: 'Reorder Point',       icon: AlertTriangle,    to: '/erp/reorder',   color: 'text-red-400 bg-red-500/10' },
+  ],
+  manager: [
+    { label: 'Laporan Stok',        icon: BarChart3,        to: '/reports',       color: 'text-blue-400 bg-blue-500/10' },
+    { label: 'Laporan ERP',         icon: DollarSign,       to: '/erp/reports',   color: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Cek Inventaris',      icon: Package,          to: '/inventory',     color: 'text-purple-400 bg-purple-500/10' },
+    { label: 'Item Kritis',         icon: AlertTriangle,    to: '/inventory?filter=kritis', color: 'text-red-400 bg-red-500/10' },
+  ],
+  requester: [
+    { label: 'Buat SPB',            icon: ClipboardList,    to: '/requests',      color: 'text-gold-400 bg-gold-500/10' },
+    { label: 'Cek Inventaris',      icon: Package,          to: '/inventory',     color: 'text-emerald-400 bg-emerald-500/10' },
+    { label: 'Item Kritis',         icon: AlertTriangle,    to: '/inventory?filter=kritis', color: 'text-red-400 bg-red-500/10' },
+  ],
+}
+
+// ── Role labels & descriptions ──
+const ROLE_INFO = {
+  admin:                { label: 'Administrator',       desc: 'Kendali penuh atas seluruh modul WMS & ERP', emoji: '👑' },
+  staff:                { label: 'Staff Gudang',        desc: 'Kelola operasional barang masuk, keluar, dan stok opname', emoji: '📦' },
+  finance_procurement:  { label: 'Finance & Procurement', desc: 'Kelola purchase order, invoice, dan anggaran', emoji: '💰' },
+  manager:              { label: 'Manager',             desc: 'Pantau ringkasan operasional dan laporan', emoji: '📊' },
+  requester:            { label: 'Requester',           desc: 'Buat permintaan barang (SPB) dan pantau inventaris', emoji: '📋' },
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [financeStats, setFinanceStats] = useState(null)
+
+  const role = user?.role || 'staff'
+  const roleInfo = ROLE_INFO[role] || ROLE_INFO.staff
+  const actions = ACTIONS[role] || ACTIONS.staff
 
   const fetchStats = async () => {
     try {
       const res = await api.get('/dashboard/stats')
       setStats(res.data)
+
+      // Finance role: also fetch ERP summary
+      if (role === 'finance_procurement' || role === 'admin') {
+        const [poRes, invRes, budRes] = await Promise.all([
+          api.get('/erp/purchase-orders').catch(() => ({ data: [] })),
+          api.get('/erp/invoices').catch(() => ({ data: [] })),
+          api.get('/erp/budgets').catch(() => ({ data: [] })),
+        ])
+        const pos  = Array.isArray(poRes) ? poRes : (poRes.data || [])
+        const invs = Array.isArray(invRes) ? invRes : (invRes.data || [])
+        const buds = Array.isArray(budRes) ? budRes : (budRes.data || [])
+
+        setFinanceStats({
+          totalPO: pos.length,
+          poPending: pos.filter(p => p.status === 'draft' || p.status === 'sent').length,
+          totalInvoice: invs.length,
+          invoiceUnpaid: invs.filter(i => i.status === 'unpaid' || i.status === 'overdue').length,
+          totalBudget: buds.reduce((a, b) => a + (+b.total_budget || +b.total || 0), 0),
+          usedBudget: buds.reduce((a, b) => a + (+b.used_budget || +b.spent || 0), 0),
+        })
+      }
     } catch {
-      // gunakan data kosong jika gagal
       setStats({ total_items: 0, critical_items: 0, total_suppliers: 0, pending_requests: 0, stock_value: 0, recent_transactions: [] })
     } finally {
       setLoading(false)
@@ -77,60 +152,113 @@ export default function DashboardPage() {
   const fmt = (n) => Number(n || 0).toLocaleString('id-ID')
   const fmtCurrency = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
 
+  // ── Stats cards based on role ──
+  const getStatCards = () => {
+    const base = [
+      { icon: Package,       label: 'Total Item',      value: fmt(stats?.total_items),      color: 'blue' },
+      { icon: AlertTriangle, label: 'Item Kritis',     value: fmt(stats?.critical_items),   color: 'red' },
+    ]
+
+    if (role === 'admin') {
+      return [
+        ...base,
+        { icon: Warehouse,     label: 'Total Supplier',  value: fmt(stats?.total_suppliers),  color: 'purple' },
+        { icon: ClipboardList, label: 'SPB Pending',     value: fmt(stats?.pending_requests), color: 'gold' },
+      ]
+    }
+
+    if (role === 'staff') {
+      return [
+        ...base,
+        { icon: ArrowDownCircle, label: 'Barang Masuk',   value: fmt(stats?.recent_inbound || stats?.total_items),  color: 'green' },
+        { icon: ClipboardList,   label: 'SPB Pending',    value: fmt(stats?.pending_requests), color: 'gold' },
+      ]
+    }
+
+    if (role === 'finance_procurement') {
+      return [
+        { icon: ShoppingCart, label: 'PO Pending',      value: fmt(financeStats?.poPending),     color: 'purple' },
+        { icon: FileText,     label: 'Invoice Belum',   value: fmt(financeStats?.invoiceUnpaid), color: 'red' },
+        { icon: DollarSign,   label: 'Total Anggaran',  value: fmtCurrency(financeStats?.totalBudget), color: 'gold', sub: `Terpakai: ${fmtCurrency(financeStats?.usedBudget)}` },
+        { icon: Warehouse,    label: 'Total Supplier',  value: fmt(stats?.total_suppliers),      color: 'blue' },
+      ]
+    }
+
+    if (role === 'manager') {
+      return [
+        ...base,
+        { icon: Warehouse,     label: 'Supplier',       value: fmt(stats?.total_suppliers),  color: 'purple' },
+        { icon: DollarSign,    label: 'Nilai Stok',     value: fmtCurrency(stats?.stock_value), color: 'green' },
+      ]
+    }
+
+    // requester
+    return [
+      { icon: ClipboardList, label: 'SPB Pending',     value: fmt(stats?.pending_requests), color: 'gold' },
+      { icon: Package,       label: 'Total Item',      value: fmt(stats?.total_items),      color: 'blue' },
+    ]
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-8 min-h-full">
 
-      {/* Greeting */}
+      {/* Greeting with role badge */}
       <div>
-        <h1 className="text-2xl font-display font-bold text-white">
-          Selamat datang, <span className="text-gold-400">{user?.name}</span> 👋
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-display font-bold text-white">
+            Selamat datang, <span className="text-gold-400">{user?.name}</span> {roleInfo.emoji}
+          </h1>
+          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gold-500/15 text-gold-400 border border-gold-500/25">
+            {roleInfo.label}
+          </span>
+        </div>
         <p className="text-slate-400 text-sm mt-1">
-          {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {roleInfo.desc} &middot; {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Package}       label="Total Item"          value={fmt(stats?.total_items)}        color="blue"   />
-        <StatCard icon={AlertTriangle} label="Item Kritis"         value={fmt(stats?.critical_items)}     color="red"    />
-        <StatCard icon={Warehouse}     label="Total Supplier"      value={fmt(stats?.total_suppliers)}    color="purple" />
-        <StatCard icon={ClipboardList} label="SPB Pending"         value={fmt(stats?.pending_requests)}   color="gold"   />
+      {/* Stat Cards — role-based */}
+      <div className={`grid gap-4 ${role === 'requester' ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+        {getStatCards().map((s, i) => (
+          <StatCard key={i} {...s} />
+        ))}
       </div>
 
       {/* Stock Value + Quick Links */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Nilai Stok */}
-        <div className="lg:col-span-1 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <DollarSign size={18} className="text-gold-400" />
-              <span className="text-white font-semibold text-sm">Nilai Stok Gudang</span>
+        {/* Nilai Stok — hide for requester */}
+        {role !== 'requester' && (
+          <div className="lg:col-span-1 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <DollarSign size={18} className="text-gold-400" />
+                <span className="text-white font-semibold text-sm">
+                  {role === 'finance_procurement' ? 'Sisa Anggaran' : 'Nilai Stok Gudang'}
+                </span>
+              </div>
+              <div className="text-3xl font-display font-bold text-white break-all">
+                {loading ? '—' : role === 'finance_procurement'
+                  ? fmtCurrency((financeStats?.totalBudget || 0) - (financeStats?.usedBudget || 0))
+                  : fmtCurrency(stats?.stock_value)
+                }
+              </div>
+              <div className="text-slate-500 text-xs mt-1">
+                {role === 'finance_procurement' ? 'Sisa dari total anggaran aktif' : 'Total estimasi nilai inventaris'}
+              </div>
             </div>
-            <div className="text-3xl font-display font-bold text-white break-all">
-              {loading ? '—' : fmtCurrency(stats?.stock_value)}
+            <div className="mt-6 flex items-center gap-2 text-emerald-400 text-xs">
+              <TrendingUp size={14} />
+              <span>Real-time dari data aktif</span>
             </div>
-            <div className="text-slate-500 text-xs mt-1">Total estimasi nilai inventaris</div>
           </div>
-          <div className="mt-6 flex items-center gap-2 text-emerald-400 text-xs">
-            <TrendingUp size={14} />
-            <span>Real-time dari stok aktif</span>
-          </div>
-        </div>
+        )}
 
-        {/* Quick Actions */}
-        <div className="lg:col-span-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
+        {/* Quick Actions — role-based */}
+        <div className={`${role === 'requester' ? 'lg:col-span-3' : 'lg:col-span-2'} rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6`}>
           <h3 className="text-white font-semibold text-sm mb-4">Aksi Cepat</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[
-              { label: 'Catat Barang Masuk',  icon: ArrowDownCircle,  to: '/inbound',   color: 'text-blue-400 bg-blue-500/10' },
-              { label: 'Catat Barang Keluar', icon: ArrowUpCircle,    to: '/outbound',  color: 'text-orange-400 bg-orange-500/10' },
-              { label: 'Buat SPB',            icon: ClipboardList,    to: '/requests',  color: 'text-gold-400 bg-gold-500/10' },
-              { label: 'Cek Inventaris',      icon: Package,          to: '/inventory', color: 'text-emerald-400 bg-emerald-500/10' },
-              { label: 'Stock Opname',        icon: RefreshCcw,       to: '/opname',    color: 'text-purple-400 bg-purple-500/10' },
-              { label: 'Item Kritis',         icon: AlertTriangle,    to: '/inventory?filter=kritis', color: 'text-red-400 bg-red-500/10' },
-            ].map((a) => (
+          <div className={`grid gap-3 ${actions.length <= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'}`}>
+            {actions.map((a) => (
               <Link key={a.to} to={a.to}
                 className="flex items-center gap-2.5 p-3 rounded-xl border border-white/[0.06] hover:border-white/[0.15] hover:bg-white/[0.04] transition-all duration-200 group">
                 <div className={`p-2 rounded-lg ${a.color}`}>
