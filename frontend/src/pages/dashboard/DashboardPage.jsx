@@ -89,20 +89,14 @@ const ACTIONS = {
     { label: 'Cek Inventaris',      icon: Package,          to: '/inventory',     color: 'text-purple-400 bg-purple-500/10' },
     { label: 'Item Kritis',         icon: AlertTriangle,    to: '/inventory?filter=kritis', color: 'text-red-400 bg-red-500/10' },
   ],
-  requester: [
-    { label: 'Buat SPB',            icon: ClipboardList,    to: '/requests',      color: 'text-gold-400 bg-gold-500/10' },
-    { label: 'Cek Inventaris',      icon: Package,          to: '/inventory',     color: 'text-emerald-400 bg-emerald-500/10' },
-    { label: 'Item Kritis',         icon: AlertTriangle,    to: '/inventory?filter=kritis', color: 'text-red-400 bg-red-500/10' },
-  ],
 }
 
 // ── Role labels & descriptions ──
 const ROLE_INFO = {
   admin:                { label: 'Administrator',       desc: 'Kendali penuh atas seluruh modul WMS & ERP', emoji: '👑' },
-  staff:                { label: 'Staff Gudang',        desc: 'Kelola operasional barang masuk, keluar, dan stok opname', emoji: '📦' },
+  staff:                { label: 'Warehouse Staff',     desc: 'Kelola operasional barang masuk, keluar, dan stok opname', emoji: '📦' },
   finance_procurement:  { label: 'Finance & Procurement', desc: 'Kelola purchase order, invoice, dan anggaran', emoji: '💰' },
-  manager:              { label: 'Manager',             desc: 'Pantau ringkasan operasional dan laporan', emoji: '📊' },
-  requester:            { label: 'Requester',           desc: 'Buat permintaan barang (SPB) dan pantau inventaris', emoji: '📋' },
+  manager:              { label: 'Manager / Viewer',    desc: 'Pantau ringkasan operasional dan laporan', emoji: '📊' },
 }
 
 export default function DashboardPage() {
@@ -192,10 +186,11 @@ export default function DashboardPage() {
       ]
     }
 
-    // requester
+    // fallback (staff-like)
     return [
-      { icon: ClipboardList, label: 'SPB Pending',     value: fmt(stats?.pending_requests), color: 'gold' },
-      { icon: Package,       label: 'Total Item',      value: fmt(stats?.total_items),      color: 'blue' },
+      ...base,
+      { icon: ArrowDownCircle, label: 'Barang Masuk',   value: fmt(stats?.recent_inbound || stats?.total_items),  color: 'green' },
+      { icon: ClipboardList,   label: 'SPB Pending',    value: fmt(stats?.pending_requests), color: 'gold' },
     ]
   }
 
@@ -218,7 +213,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat Cards — role-based */}
-      <div className={`grid gap-4 ${role === 'requester' ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {getStatCards().map((s, i) => (
           <StatCard key={i} {...s} />
         ))}
@@ -227,8 +222,8 @@ export default function DashboardPage() {
       {/* Stock Value + Quick Links */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Nilai Stok — hide for requester */}
-        {role !== 'requester' && (
+        {/* Nilai Stok */}
+        {(
           <div className="lg:col-span-1 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-4">
@@ -255,7 +250,7 @@ export default function DashboardPage() {
         )}
 
         {/* Quick Actions — role-based */}
-        <div className={`${role === 'requester' ? 'lg:col-span-3' : 'lg:col-span-2'} rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6`}>
+        <div className="lg:col-span-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
           <h3 className="text-white font-semibold text-sm mb-4">Aksi Cepat</h3>
           <div className={`grid gap-3 ${actions.length <= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'}`}>
             {actions.map((a) => (
