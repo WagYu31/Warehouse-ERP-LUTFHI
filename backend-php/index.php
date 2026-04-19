@@ -168,6 +168,20 @@ try {
         exit;
     }
 
+    // Item Stocks
+    if (strpos($uri, '/item-stocks') === 0) {
+        require_once BASE_PATH . '/routes/item_stocks.php';
+        handleItemStocks($method, $uri, $user, $params);
+        exit;
+    }
+
+    // Reorder Configs
+    if (strpos($uri, '/reorder-configs') === 0) {
+        require_once BASE_PATH . '/routes/reorder_configs.php';
+        handleReorderConfigs($method, $uri, $user, $params);
+        exit;
+    }
+
     // ERP (Purchase Orders, Invoices, Budgets)
     if (strpos($uri, '/erp') === 0) {
         require_once BASE_PATH . '/routes/erp.php';
