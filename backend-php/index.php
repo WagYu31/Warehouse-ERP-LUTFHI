@@ -189,6 +189,20 @@ try {
         exit;
     }
 
+    // Backup (Admin Only)
+    if (strpos($uri, '/backup') === 0) {
+        require_once BASE_PATH . '/routes/backup.php';
+        handleBackup($method, $uri, $user);
+        exit;
+    }
+
+    // AI Chatbot
+    if (strpos($uri, '/ai') === 0) {
+        require_once BASE_PATH . '/routes/ai.php';
+        handleAI($method, $uri, $user);
+        exit;
+    }
+
     // 404
     respondError('Route not found: ' . $method . ' ' . $uri, 404);
 

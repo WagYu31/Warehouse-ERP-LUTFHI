@@ -8,10 +8,11 @@ import {
   PiggyBank, RefreshCcw, BarChart3, Building2, Users,
   LogOut, ChevronDown, ChevronRight, Menu, X, Bell, Settings,
   ArrowLeftRight, Database, User, Send, RotateCcw, BarChart2,
-  Sun, Moon
+  Sun, Moon, HardDrive
 } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import AIChatbot from '@/components/AIChatbot'
 
 const NAV = [
   {
@@ -60,9 +61,10 @@ const NAV = [
     icon: Settings,
     roles: ['admin'],
     children: [
-      { label: 'Gudang',       icon: Building2, to: '/admin/warehouses' },
-      { label: 'Pengguna',     icon: Users,     to: '/admin/users' },
-      { label: 'Master Data',  icon: Database,  to: '/admin/master-data' },
+      { label: 'Gudang',       icon: Building2,  to: '/admin/warehouses' },
+      { label: 'Pengguna',     icon: Users,      to: '/admin/users' },
+      { label: 'Master Data',  icon: Database,   to: '/admin/master-data' },
+      { label: 'Backup Data',  icon: HardDrive,  to: '/admin/backup' },
     ],
   },
 ]
@@ -367,6 +369,9 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* AI Chatbot — visible on all pages */}
+      <AIChatbot />
     </div>
   )
 }

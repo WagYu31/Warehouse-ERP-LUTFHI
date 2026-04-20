@@ -22,6 +22,7 @@ import UsersPage from '@/pages/admin/UsersPage'
 import MasterDataPage from '@/pages/admin/MasterDataPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
 import ReportsPage from '@/pages/reports/ReportsPage'
+import BackupPage from '@/pages/admin/BackupPage'
 
 function PrivateRoute({ children, allowedRoles }) {
   const { user, token } = useAuthStore()
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="admin/warehouses" element={<PrivateRoute allowedRoles={['admin']}><WarehousePage /></PrivateRoute>} />
         <Route path="admin/users" element={<PrivateRoute allowedRoles={['admin']}><UsersPage /></PrivateRoute>} />
         <Route path="admin/master-data" element={<PrivateRoute allowedRoles={['admin']}><MasterDataPage /></PrivateRoute>} />
+        <Route path="admin/backup" element={<PrivateRoute allowedRoles={['admin']}><BackupPage /></PrivateRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
