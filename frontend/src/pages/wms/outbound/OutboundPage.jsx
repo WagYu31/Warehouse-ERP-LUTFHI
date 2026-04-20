@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowUpCircle, Plus } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 
 const COLS = [
@@ -14,6 +15,8 @@ const COLS = [
 ]
 
 export default function OutboundPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]       = useState([])
   const [items, setItems]     = useState([])
   const [warehouses, setWarehouses] = useState([])
@@ -50,7 +53,7 @@ export default function OutboundPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={ArrowUpCircle} title="Barang Keluar" subtitle="Pengeluaran stok dari gudang" onRefresh={load} onAdd={() => setModal(true)} addLabel="Catat Keluar" />
+      <PageHeader icon={ArrowUpCircle} title="Barang Keluar" subtitle="Pengeluaran stok dari gudang" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Catat Keluar" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nomor dokumen..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada pengeluaran barang" />

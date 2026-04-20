@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { PiggyBank } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, Modal, FormField, Input, Select } from '@/components/ui'
 
 const COLS = [
@@ -27,6 +28,8 @@ const COLS = [
 ]
 
 export default function BudgetPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'finance_procurement'].includes(user?.role)
   const [data, setData]   = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -49,7 +52,7 @@ export default function BudgetPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={PiggyBank} title="Budget & Anggaran" subtitle="Pantau dan kelola anggaran pengadaan" onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat Budget" />
+      <PageHeader icon={PiggyBank} title="Budget & Anggaran" subtitle="Pantau dan kelola anggaran pengadaan" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Budget" />
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada anggaran" />
       </div>

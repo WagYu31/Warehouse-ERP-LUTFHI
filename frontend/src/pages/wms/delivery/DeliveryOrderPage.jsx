@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Truck, MapPin, CheckCircle, Plus, Printer } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
 
 const STATUS_MAP = { pending: 'warning', dispatched: 'info', delivered: 'success', cancelled: 'danger' }
@@ -16,6 +17,8 @@ const COLS = [
 ]
 
 export default function DeliveryOrderPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]       = useState([])
   const [outbounds, setOutbounds] = useState([])
   const [loading, setLoading] = useState(true)
@@ -87,7 +90,7 @@ export default function DeliveryOrderPage() {
   return (
     <PageShell>
       <PageHeader icon={Truck} title="Surat Jalan" subtitle="Delivery Order — dokumen pengiriman barang"
-        onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat Surat Jalan" />
+        onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Surat Jalan" />
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS_WITH_ACTION} data={data} loading={loading} emptyMessage="Belum ada surat jalan" />

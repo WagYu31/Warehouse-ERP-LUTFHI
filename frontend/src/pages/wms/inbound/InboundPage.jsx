@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowDownCircle, Plus, Eye } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 
 const COLS = [
@@ -13,6 +14,8 @@ const COLS = [
 ]
 
 export default function InboundPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]       = useState([])
   const [items, setItems]     = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -53,7 +56,7 @@ export default function InboundPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={ArrowDownCircle} title="Barang Masuk (GRN)" subtitle="Goods Receipt Note" onRefresh={load} onAdd={() => setModal(true)} addLabel="Catat Masuk" />
+      <PageHeader icon={ArrowDownCircle} title="Barang Masuk (GRN)" subtitle="Goods Receipt Note" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Catat Masuk" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nomor GRN atau supplier..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada penerimaan barang" />

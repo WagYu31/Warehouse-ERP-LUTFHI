@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ClipboardCheck, Package, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, Modal, FormField, Input, Select, StatusBadge } from '@/components/ui'
 
 const STATUS_COLORS = {
@@ -20,6 +21,8 @@ const COLS = [
 ]
 
 export default function OpnamePage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]       = useState([])
   const [loading, setLoading] = useState(true)
   const [warehouses, setWarehouses] = useState([])
@@ -68,7 +71,7 @@ export default function OpnamePage() {
         title="Stock Opname"
         subtitle="Rekonsiliasi stok fisik vs sistem"
         onRefresh={load}
-        onAdd={() => setModal(true)}
+        onAdd={canCreate ? () => setModal(true) : undefined}
         addLabel="Buat Opname"
       />
 
@@ -99,9 +102,11 @@ export default function OpnamePage() {
             </div>
             <h3 className="text-white font-semibold mb-2">Belum Ada Opname</h3>
             <p className="text-slate-500 text-sm mb-4">Buat opname pertama untuk merekonsiliasi stok gudang.</p>
-            <button onClick={() => setModal(true)} className="px-5 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">
-              + Buat Opname
-            </button>
+            {canCreate && (
+              <button onClick={() => setModal(true)} className="px-5 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">
+                + Buat Opname
+              </button>
+            )}
           </div>
         ) : (
           <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Tidak ada data opname" />

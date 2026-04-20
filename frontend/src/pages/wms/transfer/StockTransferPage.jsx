@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeftRight, Warehouse } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Select, Input } from '@/components/ui'
 
 const COLS = [
@@ -13,6 +14,8 @@ const COLS = [
 ]
 
 export default function StockTransferPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]           = useState([])
   const [warehouses, setWarehouses] = useState([])
   const [items, setItems]         = useState([])
@@ -68,7 +71,7 @@ export default function StockTransferPage() {
   return (
     <PageShell>
       <PageHeader icon={ArrowLeftRight} title="Transfer Stok" subtitle="Pindah stok antar gudang"
-        onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat Transfer" />
+        onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Transfer" />
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada transfer stok" />

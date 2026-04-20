@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Package, AlertTriangle } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import {
   PageShell, PageHeader, SearchBar, DataTable, StatusBadge,
   Modal, FormField, Input, Select, Textarea
@@ -27,6 +28,8 @@ const COLS = [
 ]
 
 export default function InventoryPage() {
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
   const [data, setData]         = useState([])
   const [cats, setCats]         = useState([])
   const [units, setUnits]       = useState([])
@@ -89,7 +92,7 @@ export default function InventoryPage() {
       <PageHeader
         icon={Package} title="Inventaris Stok"
         subtitle={`${data.length} item aktif`}
-        onRefresh={load} onAdd={openAdd} onExport={exportCSV}
+        onRefresh={load} onAdd={isAdmin ? openAdd : undefined} onExport={exportCSV}
       />
 
       {/* Filter kritis */}
@@ -102,7 +105,9 @@ export default function InventoryPage() {
       </div>
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS} data={data} loading={loading} onEdit={openEdit} onDelete={del}
+        <DataTable columns={COLS} data={data} loading={loading}
+          onEdit={isAdmin ? openEdit : undefined}
+          onDelete={isAdmin ? del : undefined}
           emptyMessage="Belum ada item. Tambahkan item pertama Anda!" />
       </div>
 

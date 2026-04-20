@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Truck } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, Modal, FormField, Input, Textarea } from '@/components/ui'
 
 const COLS = [
@@ -18,6 +19,9 @@ const COLS = [
 ]
 
 export default function SupplierPage() {
+  const { user } = useAuthStore()
+  const canEdit = ['admin', 'finance_procurement'].includes(user?.role)
+  const isAdmin = user?.role === 'admin'
   const [data, setData] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -53,10 +57,10 @@ export default function SupplierPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={Truck} title="Manajemen Supplier" subtitle="Data pemasok dan vendor" onRefresh={load} onAdd={openAdd} addLabel="Tambah Supplier" />
+      <PageHeader icon={Truck} title="Manajemen Supplier" subtitle="Data pemasok dan vendor" onRefresh={load} onAdd={canEdit ? openAdd : undefined} addLabel="Tambah Supplier" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nama supplier..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS} data={data} loading={loading} onEdit={openEdit} onDelete={del} emptyMessage="Belum ada supplier" />
+        <DataTable columns={COLS} data={data} loading={loading} onEdit={canEdit ? openEdit : undefined} onDelete={isAdmin ? del : undefined} emptyMessage="Belum ada supplier" />
       </div>
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Edit Supplier' : 'Tambah Supplier'}>
         <div className="space-y-4">

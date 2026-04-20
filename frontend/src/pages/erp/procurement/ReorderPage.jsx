@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { RefreshCcw, AlertTriangle, Package, TrendingDown, CheckCircle } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, Modal, FormField, Input, Select } from '@/components/ui'
 
 const COLS = [
@@ -25,6 +26,8 @@ const COLS = [
 ]
 
 export default function ReorderPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'finance_procurement'].includes(user?.role)
   const [configs, setConfigs]   = useState([])
   const [alerts, setAlerts]     = useState([])
   const [loading, setLoading]   = useState(true)
@@ -89,7 +92,7 @@ export default function ReorderPage() {
         title="Reorder Point"
         subtitle="Monitor stok kritis dan konfigurasi pemesanan otomatis"
         onRefresh={load}
-        onAdd={() => setModal(true)}
+        onAdd={canCreate ? () => setModal(true) : undefined}
         addLabel="Tambah Konfigurasi"
       />
 

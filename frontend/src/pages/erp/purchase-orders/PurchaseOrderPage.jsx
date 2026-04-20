@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ShoppingCart, Printer } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 import { printPurchaseOrder } from '@/utils/printUtils'
 
@@ -22,6 +23,8 @@ const COLS = [
 ]
 
 export default function PurchaseOrderPage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'finance_procurement'].includes(user?.role)
   const [data, setData]       = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [items, setItems]     = useState([])
@@ -62,7 +65,7 @@ export default function PurchaseOrderPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={ShoppingCart} title="Purchase Order" subtitle="Kelola pembelian ke supplier" onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat PO" />
+      <PageHeader icon={ShoppingCart} title="Purchase Order" subtitle="Kelola pembelian ke supplier" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat PO" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari No. PO atau supplier..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada Purchase Order" />

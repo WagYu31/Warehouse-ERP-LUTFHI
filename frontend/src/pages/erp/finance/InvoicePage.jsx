@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { FileText, CreditCard, History, Printer, Download } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
 import { printInvoice } from '@/utils/printUtils'
 
@@ -18,6 +19,8 @@ const COLS = [
 ]
 
 export default function InvoicePage() {
+  const { user } = useAuthStore()
+  const canCreate = ['admin', 'finance_procurement'].includes(user?.role)
   const [data, setData]     = useState([])
   const [pos, setPOs]       = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -111,7 +114,7 @@ export default function InvoicePage() {
 
   return (
     <PageShell>
-      <PageHeader icon={FileText} title="Invoice" subtitle="Kelola tagihan dari supplier" onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat Invoice" />
+      <PageHeader icon={FileText} title="Invoice" subtitle="Kelola tagihan dari supplier" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Invoice" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari no. invoice..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS_WITH_ACTION} data={data} loading={loading} emptyMessage="Belum ada invoice" />
