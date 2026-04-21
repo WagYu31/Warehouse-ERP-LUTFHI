@@ -30,7 +30,7 @@ export default function BackupPage() {
         `${import.meta.env.VITE_API_URL || '/api'}/backup/csv`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('wms_token') || sessionStorage.getItem('wms_token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('wms-token') || sessionStorage.getItem('wms-token')}`,
           },
         }
       )
