@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { Database, Download, HardDrive, RefreshCw, Shield, Clock, FileText } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader } from '@/components/ui'
 
 export default function BackupPage() {
   const [info, setInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const token = useAuthStore((s) => s.token)
 
   const loadInfo = async () => {
     setLoading(true)
@@ -30,7 +32,7 @@ export default function BackupPage() {
         `${import.meta.env.VITE_API_URL || '/api'}/backup/csv`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('wms-token') || sessionStorage.getItem('wms-token')}`,
+            'Authorization': `Bearer ${token}`,
           },
         }
       )
