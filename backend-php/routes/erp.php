@@ -137,8 +137,10 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
                 'custom_field1' => $m[1], // invoice_id
             ];
 
-            $serverKey = defined('MIDTRANS_SERVER_KEY') ? MIDTRANS_SERVER_KEY : 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
-            $url       = 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: '';
+            $url       = getenv('MIDTRANS_IS_PRODUCTION') === 'true'
+                ? 'https://app.midtrans.com/snap/v1/transactions'
+                : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -290,7 +292,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
 // ── MIDTRANS WEBHOOK HANDLER (public, no auth) ────────────────
 function handleMidtransWebhook(): void {
     $db         = getDB();
-    $serverKey  = defined('MIDTRANS_SERVER_KEY') ? MIDTRANS_SERVER_KEY : 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
+    $serverKey  = getenv('MIDTRANS_SERVER_KEY') ?: '';
     $body       = json_decode(file_get_contents('php://input'), true);
 
     if (!$body || !isset($body['order_id'])) {
