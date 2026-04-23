@@ -3,7 +3,7 @@
  * Props: title, subtitle, icon, columns, fetchFn, createFn, deleteFn, filterFields, formFields
  */
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Download, Upload, RefreshCcw, Trash2, Edit, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Download, Upload, RefreshCcw, Trash2, Edit, Eye, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 // ─── Badge Status ─────────────────────────────────────────────
@@ -115,7 +115,7 @@ export function SearchBar({ value, onChange, placeholder = 'Cari...' }) {
 }
 
 // ─── Data Table ───────────────────────────────────────────────
-export function DataTable({ columns, data, loading, onEdit, onDelete, emptyMessage = 'Tidak ada data' }) {
+export function DataTable({ columns, data, loading, onView, onEdit, onDelete, emptyMessage = 'Tidak ada data' }) {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -143,7 +143,7 @@ export function DataTable({ columns, data, loading, onEdit, onDelete, emptyMessa
                 {col.label}
               </th>
             ))}
-            {(onEdit || onDelete) && <th className="pb-3 px-2" />}
+            {(onView || onEdit || onDelete) && <th className="pb-3 px-2" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-white/[0.04]">
@@ -156,9 +156,15 @@ export function DataTable({ columns, data, loading, onEdit, onDelete, emptyMessa
                   )}
                 </td>
               ))}
-              {(onEdit || onDelete) && (
+              {(onView || onEdit || onDelete) && (
                 <td className="py-3.5 px-2">
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                    {onView && (
+                      <button onClick={() => onView(row)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Lihat Detail">
+                        <Eye size={14} />
+                      </button>
+                    )}
                     {onEdit && (
                       <button onClick={() => onEdit(row)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-all">

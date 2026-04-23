@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Package, AlertTriangle } from 'lucide-react'
+import { Package, AlertTriangle, Eye, Tag, Layers, BarChart2, Settings2, Clock } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -27,6 +27,27 @@ const COLS = [
   { key: 'is_active', label: 'Status', render: v => <StatusBadge value={v == '1' || v === true ? 'active' : 'inactive'} /> },
 ]
 
+function DetailRow({ label, value, highlight }) {
+  return (
+    <div className="flex justify-between items-start py-2 border-b border-white/[0.05] last:border-0">
+      <span className="text-slate-500 text-xs">{label}</span>
+      <span className={`text-sm font-medium text-right max-w-[60%] ${highlight ? 'text-gold-400' : 'text-white'}`}>{value ?? '—'}</span>
+    </div>
+  )
+}
+
+function DetailSection({ icon: Icon, title, children }) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon size={14} className="text-gold-400" />
+        <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider">{title}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export default function InventoryPage() {
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
@@ -36,6 +57,8 @@ export default function InventoryPage() {
   const [search, setSearch]     = useState('')
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [editing, setEditing]   = useState(null)
   const [form, setForm]         = useState({ sku:'', name:'', category_id:'', unit_id:'', min_stock:0, price:0, description:'' })
 
@@ -56,8 +79,9 @@ export default function InventoryPage() {
 
   useEffect(() => { load() }, [search])
 
-  const openAdd = () => { setEditing(null); setForm({ sku:'', name:'', category_id:'', unit_id:'', min_stock:0, price:0, description:'' }); setModal(true) }
+  const openAdd  = () => { setEditing(null); setForm({ sku:'', name:'', category_id:'', unit_id:'', min_stock:0, price:0, description:'' }); setModal(true) }
   const openEdit = (row) => { setEditing(row); setForm({ sku: row.sku, name: row.name, category_id:'', unit_id:'', min_stock: row.min_stock, price: row.price, description:'' }); setModal(true) }
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
 
   const save = async () => {
     try {
@@ -87,6 +111,8 @@ export default function InventoryPage() {
     a.click()
   }
 
+  const isCritical = selected && Number(selected.current_stock ?? 0) <= Number(selected.min_stock ?? 0) && Number(selected.min_stock ?? 0) > 0
+
   return (
     <PageShell>
       <PageHeader
@@ -106,11 +132,96 @@ export default function InventoryPage() {
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading}
+          onView={openView}
           onEdit={isAdmin ? openEdit : undefined}
           onDelete={isAdmin ? del : undefined}
           emptyMessage="Belum ada item. Tambahkan item pertama Anda!" />
       </div>
 
+      {/* ── Detail Modal ── */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gold-500/15 border border-gold-500/20 flex items-center justify-center">
+              <Eye size={14} className="text-gold-400" />
+            </div>
+            <div>
+              <div className="text-white font-bold">{selected?.name}</div>
+              <div className="text-slate-500 text-xs font-mono">{selected?.sku}</div>
+            </div>
+          </div>
+        }>
+        {selected && (
+          <div className="space-y-4">
+            {/* Status Banner */}
+            {isCritical && (
+              <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5">
+                <AlertTriangle size={14} className="text-red-400" />
+                <span className="text-red-400 text-sm font-medium">⚠️ Stok di bawah minimum — Perlu restock segera!</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Info Umum */}
+              <DetailSection icon={Tag} title="Informasi Item">
+                <DetailRow label="SKU" value={selected.sku} highlight />
+                <DetailRow label="Nama Item" value={selected.name} />
+                <DetailRow label="Kategori" value={selected.category_name ?? selected.category} />
+                <DetailRow label="Satuan" value={selected.unit_name ? `${selected.unit_name}${selected.unit_abbreviation ? ` (${selected.unit_abbreviation})` : ''}` : '—'} />
+                <DetailRow label="Deskripsi" value={selected.description || 'Tidak ada deskripsi'} />
+              </DetailSection>
+
+              {/* Info Stok & Harga */}
+              <DetailSection icon={BarChart2} title="Stok & Harga">
+                <DetailRow
+                  label="Stok Saat Ini"
+                  value={<span className={isCritical ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{selected.current_stock ?? 0}</span>}
+                />
+                <DetailRow label="Stok Minimum" value={selected.min_stock ?? 0} />
+                <DetailRow label="Stok Maksimum" value={selected.max_stock ?? '—'} />
+                <DetailRow label="Harga Satuan" value={`Rp ${Number(selected.price || 0).toLocaleString('id-ID')}`} highlight />
+                <DetailRow label="Estimasi Nilai Stok" value={`Rp ${(Number(selected.current_stock || 0) * Number(selected.price || 0)).toLocaleString('id-ID')}`} />
+              </DetailSection>
+
+              {/* Tracking */}
+              <DetailSection icon={Settings2} title="Pengaturan Tracking">
+                <DetailRow label="Batch Tracking" value={selected.batch_tracking == 1 || selected.batch_tracking === true ? '✅ Aktif' : '❌ Tidak Aktif'} />
+                <DetailRow label="Expired Tracking" value={selected.expired_tracking == 1 || selected.expired_tracking === true ? '✅ Aktif' : '❌ Tidak Aktif'} />
+                <DetailRow label="Alert Sebelum Expired" value={selected.alert_days_before ? `${selected.alert_days_before} hari` : '—'} />
+                <DetailRow label="Metode Keluar" value={selected.outbound_method?.toUpperCase() ?? 'FIFO'} />
+              </DetailSection>
+
+              {/* Lainnya */}
+              <DetailSection icon={Clock} title="Info Sistem">
+                <DetailRow label="Status" value={<StatusBadge value={selected.is_active == '1' || selected.is_active === true || selected.is_active === 1 ? 'active' : 'inactive'} />} />
+                <DetailRow label="Barcode" value={selected.barcode || '—'} />
+                <DetailRow label="QR Code" value={selected.qr_code || '—'} />
+                <DetailRow label="Dibuat" value={selected.created_at ? new Date(selected.created_at).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) : '—'} />
+                <DetailRow label="Diperbarui" value={selected.updated_at ? new Date(selected.updated_at).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) : '—'} />
+              </DetailSection>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              {isAdmin && (
+                <button
+                  onClick={() => { setDetailModal(false); openEdit(selected) }}
+                  className="px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 font-medium text-sm transition-all"
+                >
+                  ✏️ Edit Item
+                </button>
+              )}
+              <button
+                onClick={() => setDetailModal(false)}
+                className="px-5 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm transition-all"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Add/Edit Modal ── */}
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Edit Item' : 'Tambah Item Baru'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
