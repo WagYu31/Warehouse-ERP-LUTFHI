@@ -106,6 +106,67 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
     // ── INVOICES ─────────────────────────────────────────────
     if (strpos($sub, '/invoices') === 0) {
 
+        // Buat snap token Midtrans untuk pembayaran invoice
+        if ($method === 'POST' && preg_match('#^/invoices/([^/]+)/snap-token$#', $sub, $m)) {
+            requireRole($user, 'admin','finance_procurement');
+            $inv = $db->prepare("SELECT inv.*, s.name AS supplier_name FROM invoices inv LEFT JOIN suppliers s ON s.id=inv.supplier_id WHERE inv.id=?");
+            $inv->execute([$m[1]]);
+            $invoice = $inv->fetch();
+            if (!$invoice) respondError('Invoice not found', 404);
+            if ($invoice['status'] === 'paid') respondError('Invoice sudah lunas', 400);
+
+            $sisa   = (float)$invoice['total_amount'] - (float)($invoice['amount_paid'] ?? 0);
+            $orderId = 'WMS-INV-' . $m[1] . '-' . time();
+
+            $payload = [
+                'transaction_details' => [
+                    'order_id'     => $orderId,
+                    'gross_amount' => (int)ceil($sisa),
+                ],
+                'item_details' => [[
+                    'id'       => $m[1],
+                    'price'    => (int)ceil($sisa),
+                    'quantity' => 1,
+                    'name'     => 'Invoice ' . $invoice['invoice_number'],
+                ]],
+                'customer_details' => [
+                    'first_name' => 'Finance',
+                    'last_name'  => 'Manager',
+                    'email'      => 'finance@lutfhi.co.id',
+                ],
+                'custom_field1' => $m[1], // invoice_id
+            ];
+
+            $serverKey = defined('MIDTRANS_SERVER_KEY') ? MIDTRANS_SERVER_KEY : 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
+            $url       = 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'Authorization: Basic ' . base64_encode($serverKey . ':'),
+                ],
+            ]);
+            $result = json_decode(curl_exec($ch), true);
+            curl_close($ch);
+
+            if (!isset($result['token'])) {
+                respondError('Gagal buat snap token: ' . ($result['error_messages'][0] ?? 'Unknown error'), 500);
+            }
+
+            // Simpan order_id untuk referensi webhook
+            $db->prepare("INSERT INTO midtrans_orders(id, invoice_id, order_id, amount, status, created_at)
+                VALUES(?,?,?,?,'pending',NOW()) ON DUPLICATE KEY UPDATE order_id=VALUES(order_id), amount=VALUES(amount)")
+               ->execute([generateUUID(), $m[1], $orderId, (int)ceil($sisa)]);
+
+            respond(['token' => $result['token'], 'order_id' => $orderId]);
+            return;
+        }
+
+
         if ($method === 'GET' && $sub === '/invoices') {
             [$limit, $offset] = paginate();
             $status = $_GET['status'] ?? '';
@@ -224,4 +285,61 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
     }
 
     respondError('ERP route not found', 404);
+}
+
+// ── MIDTRANS WEBHOOK HANDLER (public, no auth) ────────────────
+function handleMidtransWebhook(): void {
+    $db         = getDB();
+    $serverKey  = defined('MIDTRANS_SERVER_KEY') ? MIDTRANS_SERVER_KEY : 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
+    $body       = json_decode(file_get_contents('php://input'), true);
+
+    if (!$body || !isset($body['order_id'])) {
+        http_response_code(400); echo json_encode(['error'=>'Invalid payload']); return;
+    }
+
+    // Verifikasi signature
+    $signKey = hash('sha512', $body['order_id'] . $body['status_code'] . $body['gross_amount'] . $serverKey);
+    if ($signKey !== ($body['signature_key'] ?? '')) {
+        http_response_code(403); echo json_encode(['error'=>'Invalid signature']); return;
+    }
+
+    $orderId = $body['order_id'];
+    $txStatus = $body['transaction_status'];
+    $fraudStatus = $body['fraud_status'] ?? 'accept';
+
+    // Cari invoice_id dari order_id
+    $stmt = $db->prepare("SELECT invoice_id, amount FROM midtrans_orders WHERE order_id=?");
+    $stmt->execute([$orderId]);
+    $order = $stmt->fetch();
+    if (!$order) { http_response_code(200); echo json_encode(['ok'=>true]); return; }
+
+    $invoiceId = $order['invoice_id'];
+    $amount    = $order['amount'];
+
+    $settled = in_array($txStatus, ['capture', 'settlement']) && $fraudStatus !== 'deny';
+
+    if ($settled) {
+        // Ambil invoice saat ini
+        $invStmt = $db->prepare("SELECT total_amount, amount_paid FROM invoices WHERE id=?");
+        $invStmt->execute([$invoiceId]);
+        $inv = $invStmt->fetch();
+        if (!$inv) { http_response_code(200); echo json_encode(['ok'=>true]); return; }
+
+        $newPaid = (float)$inv['amount_paid'] + (float)$amount;
+        $newStatus = $newPaid >= (float)$inv['total_amount'] ? 'paid' : 'partial';
+
+        $db->prepare("UPDATE invoices SET amount_paid=?, status=?, updated_at=NOW() WHERE id=?")
+           ->execute([$newPaid, $newStatus, $invoiceId]);
+
+        $db->prepare("INSERT INTO invoice_payments(id,invoice_id,amount,payment_method,payment_date,notes,recorded_by)
+            VALUES(?,?,?,'midtrans',NOW(),?,NULL)")
+           ->execute([generateUUID(), $invoiceId, $amount, 'Midtrans - Order ID: ' . $orderId]);
+
+        $db->prepare("UPDATE midtrans_orders SET status='settled' WHERE order_id=?")->execute([$orderId]);
+    } elseif (in_array($txStatus, ['cancel', 'expire', 'deny'])) {
+        $db->prepare("UPDATE midtrans_orders SET status=? WHERE order_id=?")->execute([$txStatus, $orderId]);
+    }
+
+    http_response_code(200);
+    echo json_encode(['ok' => true]);
 }

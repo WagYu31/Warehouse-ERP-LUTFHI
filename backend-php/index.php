@@ -69,6 +69,13 @@ try {
         exit;
     }
 
+    // ── Midtrans Webhook (public — no auth needed) ────────────
+    if ($method === 'POST' && $uri === '/erp/invoices/webhook/midtrans') {
+        require_once BASE_PATH . '/routes/erp.php';
+        handleMidtransWebhook();
+        exit;
+    }
+
     // ── All other routes require authentication ───────────────
     $user = requireAuth();
 
