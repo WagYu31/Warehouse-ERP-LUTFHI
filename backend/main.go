@@ -11,7 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
+	_ "github.com/go-sql-driver/mysql"
 
 	"wms-lutfhi/handlers"
 	"wms-lutfhi/jobs"
@@ -21,17 +21,16 @@ import (
 var DB *sql.DB
 
 func initDB() {
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		getEnv("DB_USER", "pitagic_wms_user"),
+		getEnv("DB_PASSWORD", "WmsLuth@2026#Secure"),
 		getEnv("DB_HOST", "localhost"),
-		getEnv("DB_PORT", "5435"),
-		getEnv("DB_USER", "wms_user"),
-		getEnv("DB_PASSWORD", "wms_password_2026"),
-		getEnv("DB_NAME", "wms_lutfhi"),
-		getEnv("DB_SSL_MODE", "disable"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_NAME", "pitagic_wms_lutfh"),
 	)
 
 	var err error
-	DB, err = sql.Open("postgres", dsn)
+	DB, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("❌ Failed to open database: %v", err)
 	}

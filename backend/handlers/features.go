@@ -27,7 +27,7 @@ func (h *Handler) GetInvoiceDetail(c *gin.Context) {
 		FROM invoices i
 		LEFT JOIN suppliers s ON i.supplier_id = s.id
 		LEFT JOIN purchase_orders po ON i.po_id = po.id
-		WHERE i.id = $1`, id).
+		WHERE i.id = ?`, id).
 		Scan(&invNum, &status, &total, &paid, &remaining, &invDate, &dueDate, &supplierName, &poNum)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Invoice tidak ditemukan"})
@@ -56,7 +56,7 @@ func (h *Handler) RecordPayment(c *gin.Context) {
 
 	// Ambil sisa pembayaran
 	var remaining float64
-	err := h.DB.QueryRow(`SELECT remaining_amount FROM invoices WHERE id=$1`, id).Scan(&remaining)
+	err := h.DB.QueryRow(`SELECT remaining_amount FROM invoices WHERE id=?`, id).Scan(&remaining)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Invoice tidak ditemukan"})
 		return
@@ -78,19 +78,19 @@ func (h *Handler) RecordPayment(c *gin.Context) {
 	tx, _ := h.DB.Begin()
 	// Insert ke payments
 	tx.Exec(`INSERT INTO payments (id, invoice_id, amount, payment_date, payment_method, notes, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		VALUES (?,?,?,?,?,?,?)`,
 		paymentID, id, b.Amount, payDate, method, b.Notes, paidBy)
 
 	// Update invoice
 	newPaid := 0.0
-	tx.QueryRow(`SELECT COALESCE(paid_amount,0) + $1 FROM invoices WHERE id=$2`, b.Amount, id).Scan(&newPaid)
+	tx.QueryRow(`SELECT COALESCE(paid_amount,0) + ? FROM invoices WHERE id=?`, b.Amount, id).Scan(&newPaid)
 	newRemaining := remaining - b.Amount
 	newStatus := "partial"
 	if newRemaining <= 0 {
 		newStatus = "paid"
 		newRemaining = 0
 	}
-	tx.Exec(`UPDATE invoices SET paid_amount=$1, remaining_amount=$2, status=$3, updated_at=$4 WHERE id=$5`,
+	tx.Exec(`UPDATE invoices SET paid_amount=?, remaining_amount=?, status=?, updated_at=? WHERE id=?`,
 		newPaid, newRemaining, newStatus, time.Now(), id)
 	tx.Commit()
 
@@ -107,7 +107,7 @@ func (h *Handler) GetPaymentHistory(c *gin.Context) {
 	rows, err := h.DB.Query(`
 		SELECT p.id, p.amount, p.payment_date, p.payment_method, p.notes, COALESCE(u.name,'')
 		FROM payments p LEFT JOIN users u ON p.created_by=u.id
-		WHERE p.invoice_id=$1 ORDER BY p.payment_date DESC`, id)
+		WHERE p.invoice_id=? ORDER BY p.payment_date DESC`, id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
 		return
@@ -142,7 +142,7 @@ func (h *Handler) GetPODetailFull(c *gin.Context) {
 		SELECT po.po_number, po.status, po.subtotal, po.tax_rate, po.tax_amount, po.total_amount,
 		       COALESCE(po.notes,''), po.created_at, COALESCE(s.name,'—')
 		FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id=s.id
-		WHERE po.id=$1`, id).
+		WHERE po.id=?`, id).
 		Scan(&poNum, &status, &subtotal, &taxRate, &taxAmount, &total, &notes, &createdAt, &supplierName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "PO tidak ditemukan"})
@@ -153,7 +153,7 @@ func (h *Handler) GetPODetailFull(c *gin.Context) {
 		SELECT poi.id, i.name, i.sku, poi.qty_ordered, poi.qty_received, poi.unit_price,
 		       (poi.qty_ordered * poi.unit_price) AS subtotal
 		FROM purchase_order_items poi JOIN items i ON poi.item_id=i.id
-		WHERE poi.po_id=$1`, id)
+		WHERE poi.po_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -191,7 +191,7 @@ func (h *Handler) UpdatePOStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Status tidak valid"})
 		return
 	}
-	h.DB.Exec(`UPDATE purchase_orders SET status=$1, notes=CASE WHEN $2!='' THEN $2 ELSE notes END, updated_at=$3 WHERE id=$4`,
+	h.DB.Exec(`UPDATE purchase_orders SET status=?, notes=CASE WHEN ?!='' THEN ? ELSE notes END, updated_at=? WHERE id=?`,
 		b.Status, b.Notes, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "Status PO diperbarui ke " + b.Status})
 }
@@ -258,7 +258,7 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 
 	tx, _ := h.DB.Begin()
 	tx.Exec(`INSERT INTO stock_transfers (id,ref_number,from_warehouse_id,to_warehouse_id,requested_by,transfer_date,notes,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,'completed')`,
+		VALUES (?,?,?,?,?,?,?,'completed')`,
 		id, refNum, b.FromWarehouseID, b.ToWarehouseID, requestedBy, time.Now(), b.Notes)
 
 	for _, item := range b.Items {
@@ -266,7 +266,7 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 
 		// Cek stok di gudang asal
 		var avail int
-		tx.QueryRow(`SELECT COALESCE(current_stock,0) FROM item_stocks WHERE item_id=$1 AND warehouse_id=$2`,
+		tx.QueryRow(`SELECT COALESCE(current_stock,0) FROM item_stocks WHERE item_id=? AND warehouse_id=?`,
 			item.ItemID, b.FromWarehouseID).Scan(&avail)
 		if avail < item.Qty {
 			tx.Rollback()
@@ -274,16 +274,15 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 			return
 		}
 
-		tx.Exec(`INSERT INTO stock_transfer_items (id,transfer_id,item_id,qty) VALUES ($1,$2,$3,$4)`,
+		tx.Exec(`INSERT INTO stock_transfer_items (id,transfer_id,item_id,qty) VALUES (?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty)
 		// Kurangi stok asal
-		tx.Exec(`UPDATE item_stocks SET current_stock = current_stock - $1, last_updated=NOW()
-			WHERE item_id=$2 AND warehouse_id=$3`, item.Qty, item.ItemID, b.FromWarehouseID)
+		tx.Exec(`UPDATE item_stocks SET current_stock = current_stock - ?, last_updated=NOW()
+			WHERE item_id=? AND warehouse_id=?`, item.Qty, item.ItemID, b.FromWarehouseID)
 		// Tambah stok tujuan
 		tx.Exec(`INSERT INTO item_stocks (id,item_id,warehouse_id,current_stock)
-			VALUES ($1,$2,$3,$4)
-			ON CONFLICT (item_id,warehouse_id)
-			DO UPDATE SET current_stock = item_stocks.current_stock + $4, last_updated=NOW()`,
+			VALUES (?,?,?,?)
+			ON DUPLICATE KEY UPDATE current_stock = current_stock + VALUES(current_stock), last_updated=NOW()`,
 			uuid.New().String(), item.ItemID, b.ToWarehouseID, item.Qty)
 	}
 	tx.Commit()
@@ -344,25 +343,25 @@ func (h *Handler) CreateOpnameFull(c *gin.Context) {
 
 	// Hitung total items di gudang ini
 	var totalItems int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM item_stocks WHERE warehouse_id=$1 AND current_stock > 0`, b.WarehouseID).Scan(&totalItems)
+	h.DB.QueryRow(`SELECT COUNT(*) FROM item_stocks WHERE warehouse_id=? AND current_stock > 0`, b.WarehouseID).Scan(&totalItems)
 
 	tx, _ := h.DB.Begin()
 	tx.Exec(`INSERT INTO stock_opnames (id,ref_number,warehouse_id,conducted_by,opname_date,notes,status,total_items,discrepancy_count)
-		VALUES ($1,$2,$3,$4,$5,$6,'in_progress',$7,0)`,
+		VALUES (?,?,?,?,?,?,'in_progress',?,0)`,
 		id, refNum, b.WarehouseID, conductedBy, opDate, b.Notes, totalItems)
 
 	// Pre-populate opname items dengan stok sistem saat ini
 	rows, _ := h.DB.Query(`
 		SELECT is2.item_id, is2.current_stock, i.name
 		FROM item_stocks is2 JOIN items i ON is2.item_id=i.id
-		WHERE is2.warehouse_id=$1`, b.WarehouseID)
+		WHERE is2.warehouse_id=?`, b.WarehouseID)
 	defer rows.Close()
 	for rows.Next() {
 		var itemID, itemName string
 		var sysStock int
 		rows.Scan(&itemID, &sysStock, &itemName)
 		tx.Exec(`INSERT INTO opname_items (id,opname_id,item_id,system_stock,physical_count,discrepancy)
-			VALUES ($1,$2,$3,$4,-1,0)`,
+			VALUES (?,?,?,?,-1,0)`,
 			uuid.New().String(), id, itemID, sysStock)
 	}
 	tx.Commit()
@@ -380,7 +379,7 @@ func (h *Handler) GetOpnameDetail(c *gin.Context) {
 	err := h.DB.QueryRow(`
 		SELECT so.ref_number, so.status, so.opname_date, COALESCE(w.name,'')
 		FROM stock_opnames so LEFT JOIN warehouses w ON so.warehouse_id=w.id
-		WHERE so.id=$1`, id).Scan(&ref, &status, &oDate, &warehouseName)
+		WHERE so.id=?`, id).Scan(&ref, &status, &oDate, &warehouseName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Opname tidak ditemukan"})
 		return
@@ -389,7 +388,7 @@ func (h *Handler) GetOpnameDetail(c *gin.Context) {
 	rows, _ := h.DB.Query(`
 		SELECT oi.id, oi.item_id, i.name, i.sku, oi.system_stock, oi.physical_count, oi.discrepancy
 		FROM opname_items oi JOIN items i ON oi.item_id=i.id
-		WHERE oi.opname_id=$1 ORDER BY i.name`, id)
+		WHERE oi.opname_id=? ORDER BY i.name`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -423,14 +422,14 @@ func (h *Handler) SubmitOpnameCount(c *gin.Context) {
 	discrepancyCount := 0
 	for _, item := range b.Items {
 		var sysStock int
-		tx.QueryRow(`SELECT system_stock FROM opname_items WHERE opname_id=$1 AND item_id=$2`,
+		tx.QueryRow(`SELECT system_stock FROM opname_items WHERE opname_id=? AND item_id=?`,
 			opnameID, item.ItemID).Scan(&sysStock)
 		disc := item.PhysicalCount - sysStock
 		if disc != 0 { discrepancyCount++ }
-		tx.Exec(`UPDATE opname_items SET physical_count=$1, discrepancy=$2 WHERE opname_id=$3 AND item_id=$4`,
+		tx.Exec(`UPDATE opname_items SET physical_count=?, discrepancy=? WHERE opname_id=? AND item_id=?`,
 			item.PhysicalCount, disc, opnameID, item.ItemID)
 	}
-	tx.Exec(`UPDATE stock_opnames SET status='completed', discrepancy_count=$1, updated_at=$2 WHERE id=$3`,
+	tx.Exec(`UPDATE stock_opnames SET status='completed', discrepancy_count=?, updated_at=? WHERE id=?`,
 		discrepancyCount, time.Now(), opnameID)
 	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "Opname selesai", "discrepancy_count": discrepancyCount})
@@ -445,7 +444,7 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 	rows, err := h.DB.Query(`
 		SELECT id, title, message, type, is_read, created_at
 		FROM notifications
-		WHERE user_id=$1 OR user_id IS NULL
+		WHERE user_id=? OR user_id IS NULL
 		ORDER BY created_at DESC LIMIT 50`, userID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "unread": 0})
@@ -473,11 +472,11 @@ func (h *Handler) MarkNotificationRead(c *gin.Context) {
 	id := c.Param("id")
 	if id == "all" {
 		userID := c.GetString("user_id")
-		h.DB.Exec(`UPDATE notifications SET is_read=true WHERE user_id=$1 OR user_id IS NULL`, userID)
+		h.DB.Exec(`UPDATE notifications SET is_read=true WHERE user_id=? OR user_id IS NULL`, userID)
 		c.JSON(http.StatusOK, gin.H{"message": "Semua notifikasi dibaca"})
 		return
 	}
-	h.DB.Exec(`UPDATE notifications SET is_read=true WHERE id=$1`, id)
+	h.DB.Exec(`UPDATE notifications SET is_read=true WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Notifikasi dibaca"})
 }
 
@@ -529,7 +528,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 
 	var passHash string
-	err := h.DB.QueryRow(`SELECT password_hash FROM users WHERE id=$1`, userID).Scan(&passHash)
+	err := h.DB.QueryRow(`SELECT password_hash FROM users WHERE id=?`, userID).Scan(&passHash)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "User tidak ditemukan"})
 		return
@@ -548,7 +547,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	h.DB.Exec(`UPDATE users SET password_hash=$1, updated_at=$2 WHERE id=$3`, newHash, time.Now(), userID)
+	h.DB.Exec(`UPDATE users SET password_hash=?, updated_at=? WHERE id=?`, newHash, time.Now(), userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diubah"})
 }
 
@@ -576,19 +575,19 @@ func (h *Handler) UpdateCategory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	h.DB.Exec(`UPDATE categories SET name=$1 WHERE id=$2`, b.Name, id)
+	h.DB.Exec(`UPDATE categories SET name=? WHERE id=?`, b.Name, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Kategori diperbarui"})
 }
 
 func (h *Handler) DeleteCategory(c *gin.Context) {
 	id := c.Param("id")
 	var count int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM items WHERE category_id=$1`, id).Scan(&count)
+	h.DB.QueryRow(`SELECT COUNT(*) FROM items WHERE category_id=?`, id).Scan(&count)
 	if count > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Tidak bisa hapus — ada %d item menggunakan kategori ini", count)})
 		return
 	}
-	h.DB.Exec(`DELETE FROM categories WHERE id=$1`, id)
+	h.DB.Exec(`DELETE FROM categories WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Kategori dihapus"})
 }
 
@@ -612,13 +611,13 @@ func (h *Handler) UpdateUnit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	h.DB.Exec(`UPDATE units SET name=$1 WHERE id=$2`, b.Name, id)
+	h.DB.Exec(`UPDATE units SET name=? WHERE id=?`, b.Name, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Unit diperbarui"})
 }
 
 func (h *Handler) DeleteUnit(c *gin.Context) {
 	id := c.Param("id")
-	h.DB.Exec(`DELETE FROM units WHERE id=$1`, id)
+	h.DB.Exec(`DELETE FROM units WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Unit dihapus"})
 }
 
@@ -673,9 +672,8 @@ func (h *Handler) CreateReorderConfig(c *gin.Context) {
 	id := uuid.New().String()
 	_, err := h.DB.Exec(`
 		INSERT INTO reorder_configs (id,item_id,warehouse_id,reorder_point,reorder_qty,auto_po)
-		VALUES ($1,$2,$3,$4,$5,$6)
-		ON CONFLICT (item_id,warehouse_id) DO UPDATE
-		SET reorder_point=$4, reorder_qty=$5, auto_po=$6`,
+		VALUES (?,?,?,?,?,?)
+		ON DUPLICATE KEY UPDATE reorder_point=VALUES(reorder_point), reorder_qty=VALUES(reorder_qty), auto_po=VALUES(auto_po)`,
 		id, b.ItemID, b.WarehouseID, b.ReorderPoint, b.ReorderQty, b.AutoPO)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal simpan konfigurasi: " + err.Error()})
@@ -686,7 +684,7 @@ func (h *Handler) CreateReorderConfig(c *gin.Context) {
 
 func (h *Handler) DeleteReorderConfig(c *gin.Context) {
 	id := c.Param("id")
-	h.DB.Exec(`DELETE FROM reorder_configs WHERE id=$1`, id)
+	h.DB.Exec(`DELETE FROM reorder_configs WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Konfigurasi dihapus"})
 }
 

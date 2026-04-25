@@ -45,7 +45,7 @@ func (h *Handler) GetInboundDetail(c *gin.Context) {
 	err := h.DB.QueryRow(`
 		SELECT t.ref_number, t.received_date, t.status, COALESCE(s.name,'')
 		FROM inbound_transactions t LEFT JOIN suppliers s ON t.supplier_id=s.id
-		WHERE t.id=$1`, id).Scan(&refNum, &date, &status, &supplier)
+		WHERE t.id=?`, id).Scan(&refNum, &date, &status, &supplier)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Transaksi tidak ditemukan"})
 		return
@@ -54,7 +54,7 @@ func (h *Handler) GetInboundDetail(c *gin.Context) {
 	rows, _ := h.DB.Query(`
 		SELECT ii.id, i.sku, i.name, ii.qty_received, ii.unit_price
 		FROM inbound_items ii JOIN items i ON ii.item_id=i.id
-		WHERE ii.transaction_id=$1`, id)
+		WHERE ii.transaction_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -101,19 +101,18 @@ func (h *Handler) CreateInbound(c *gin.Context) {
 	tx, _ := h.DB.Begin()
 
 	tx.Exec(`INSERT INTO inbound_transactions (id,ref_number,supplier_id,warehouse_id,received_by,received_date,notes,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,'confirmed')`,
+		VALUES (?,?,?,?,?,?,?,'confirmed')`,
 		id, refNum, nullStr(b.SupplierID), b.WarehouseID, receivedBy, date, b.Notes)
 
 	for _, item := range b.Items {
-		tx.Exec(`INSERT INTO inbound_items (id,transaction_id,item_id,qty_received,unit_price) VALUES ($1,$2,$3,$4,$5)`,
+		tx.Exec(`INSERT INTO inbound_items (id,transaction_id,item_id,qty_received,unit_price) VALUES (?,?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty, item.Price)
 
 		// Update stok
 		tx.Exec(`
 			INSERT INTO item_stocks (id, item_id, warehouse_id, current_stock)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (item_id, warehouse_id)
-			DO UPDATE SET current_stock = item_stocks.current_stock + $4, last_updated = NOW()`,
+			VALUES (?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE current_stock = current_stock + VALUES(current_stock), last_updated = NOW()`,
 			uuid.New().String(), item.ItemID, b.WarehouseID, item.Qty)
 	}
 
@@ -123,7 +122,7 @@ func (h *Handler) CreateInbound(c *gin.Context) {
 
 func (h *Handler) ConfirmInbound(c *gin.Context) {
 	id := c.Param("id")
-	h.DB.Exec(`UPDATE inbound_transactions SET status='confirmed', updated_at=$1 WHERE id=$2`, time.Now(), id)
+	h.DB.Exec(`UPDATE inbound_transactions SET status='confirmed', updated_at=? WHERE id=?`, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "Barang masuk dikonfirmasi"})
 }
 
@@ -168,15 +167,15 @@ func (h *Handler) CreateOutbound(c *gin.Context) {
 
 	tx, _ := h.DB.Begin()
 	tx.Exec(`INSERT INTO outbound_transactions (id,ref_number,warehouse_id,processed_by,outbound_date,notes,status)
-		VALUES ($1,$2,$3,$4,$5,$6,'confirmed')`,
+		VALUES (?,?,?,?,?,?,'confirmed')`,
 		id, refNum, b.WarehouseID, processedBy, time.Now(), b.Notes)
 
 	for _, item := range b.Items {
-		tx.Exec(`INSERT INTO outbound_items (id,transaction_id,item_id,qty) VALUES ($1,$2,$3,$4)`,
+		tx.Exec(`INSERT INTO outbound_items (id,transaction_id,item_id,qty) VALUES (?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty)
 		// Kurangi stok
-		tx.Exec(`UPDATE item_stocks SET current_stock = GREATEST(0, current_stock - $1), last_updated=NOW()
-			WHERE item_id=$2 AND warehouse_id=$3`, item.Qty, item.ItemID, b.WarehouseID)
+		tx.Exec(`UPDATE item_stocks SET current_stock = GREATEST(0, current_stock - ?), last_updated=NOW()
+			WHERE item_id=? AND warehouse_id=?`, item.Qty, item.ItemID, b.WarehouseID)
 	}
 	tx.Commit()
 	c.JSON(http.StatusCreated, gin.H{"message": "Barang keluar berhasil dicatat", "ref_number": refNum, "id": id})
@@ -231,14 +230,14 @@ func (h *Handler) GetRequestDetail(c *gin.Context) {
 	id := c.Param("id")
 	var spbNum, priority, status, purpose string
 	var neededDate time.Time
-	err := h.DB.QueryRow(`SELECT spb_number,needed_date,priority,status,purpose FROM requests WHERE id=$1`, id).
+	err := h.DB.QueryRow(`SELECT spb_number,needed_date,priority,status,purpose FROM requests WHERE id=?`, id).
 		Scan(&spbNum, &neededDate, &priority, &status, &purpose)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "SPB tidak ditemukan"})
 		return
 	}
 	rows, _ := h.DB.Query(`SELECT ri.id, i.sku, i.name, ri.qty_requested, ri.qty_approved
-		FROM request_items ri JOIN items i ON ri.item_id=i.id WHERE ri.request_id=$1`, id)
+		FROM request_items ri JOIN items i ON ri.item_id=i.id WHERE ri.request_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -280,11 +279,11 @@ func (h *Handler) CreateRequest(c *gin.Context) {
 
 	tx, _ := h.DB.Begin()
 	tx.Exec(`INSERT INTO requests (id,spb_number,requester_id,warehouse_id,needed_date,purpose,priority,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,'pending')`,
+		VALUES (?,?,?,?,?,?,?,'pending')`,
 		id, spbNum, requesterID, nullStr(b.WarehouseID), date, b.Purpose, priority)
 
 	for _, item := range b.Items {
-		tx.Exec(`INSERT INTO request_items (id,request_id,item_id,qty_requested) VALUES ($1,$2,$3,$4)`,
+		tx.Exec(`INSERT INTO request_items (id,request_id,item_id,qty_requested) VALUES (?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty)
 	}
 	tx.Commit()
@@ -294,7 +293,7 @@ func (h *Handler) CreateRequest(c *gin.Context) {
 func (h *Handler) ApproveRequest(c *gin.Context) {
 	id := c.Param("id")
 	approvedBy := c.GetString("user_id")
-	h.DB.Exec(`UPDATE requests SET status='approved', reviewed_by=$1, reviewed_at=$2, updated_at=$2 WHERE id=$3`,
+	h.DB.Exec(`UPDATE requests SET status='approved', reviewed_by=?, reviewed_at=?, updated_at=? WHERE id=?`,
 		approvedBy, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "SPB disetujui"})
 }
@@ -304,7 +303,7 @@ func (h *Handler) RejectRequest(c *gin.Context) {
 	var b struct{ Notes string `json:"notes"` }
 	c.ShouldBindJSON(&b)
 	approvedBy := c.GetString("user_id")
-	h.DB.Exec(`UPDATE requests SET status='rejected', reviewed_by=$1, reviewed_at=$2, review_notes=$3, updated_at=$2 WHERE id=$4`,
+	h.DB.Exec(`UPDATE requests SET status='rejected', reviewed_by=?, reviewed_at=?, review_notes=?, updated_at=? WHERE id=?`,
 		approvedBy, time.Now(), b.Notes, id)
 	c.JSON(http.StatusOK, gin.H{"message": "SPB ditolak"})
 }
@@ -403,11 +402,11 @@ func (h *Handler) CreatePurchaseOrder(c *gin.Context) {
 	total := subtotal + taxAmt
 
 	h.DB.Exec(`INSERT INTO purchase_orders (id,po_number,supplier_id,warehouse_id,created_by,tax_rate,subtotal,tax_amount,total_amount,notes,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft')`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,'draft')`,
 		id, poNum, nullStr(b.SupplierID), nullStr(b.WarehouseID), createdBy, taxRate, subtotal, taxAmt, total, b.Notes)
 
 	for _, item := range b.Items {
-		h.DB.Exec(`INSERT INTO purchase_order_items (id,po_id,item_id,qty_ordered,unit_price) VALUES ($1,$2,$3,$4,$5)`,
+		h.DB.Exec(`INSERT INTO purchase_order_items (id,po_id,item_id,qty_ordered,unit_price) VALUES (?,?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty, item.UnitPrice)
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Purchase Order dibuat", "po_number": poNum, "id": id})
@@ -417,7 +416,7 @@ func (h *Handler) GetPurchaseOrderDetail(c *gin.Context) {
 	id := c.Param("id")
 	var poNum, status string
 	var total float64
-	err := h.DB.QueryRow(`SELECT po_number,status,total_amount FROM purchase_orders WHERE id=$1`, id).Scan(&poNum, &status, &total)
+	err := h.DB.QueryRow(`SELECT po_number,status,total_amount FROM purchase_orders WHERE id=?`, id).Scan(&poNum, &status, &total)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "PO tidak ditemukan"})
 		return
@@ -429,7 +428,7 @@ func (h *Handler) UpdatePurchaseOrder(c *gin.Context) {
 	id := c.Param("id")
 	var b struct{ Status string `json:"status"` }
 	c.ShouldBindJSON(&b)
-	h.DB.Exec(`UPDATE purchase_orders SET status=$1, updated_at=$2 WHERE id=$3`, b.Status, time.Now(), id)
+	h.DB.Exec(`UPDATE purchase_orders SET status=?, updated_at=? WHERE id=?`, b.Status, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "PO diperbarui"})
 }
 
@@ -463,7 +462,7 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 	dueDate, _ := time.Parse("2006-01-02", b.DueDate)
 	createdBy := c.GetString("user_id")
 	h.DB.Exec(`INSERT INTO invoices (id,invoice_number,po_id,supplier_id,invoice_date,due_date,total_amount,created_by,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'unpaid')`,
+		VALUES (?,?,?,?,?,?,?,?,'unpaid')`,
 		id, b.InvoiceNumber, nullStr(b.POID), nullStr(b.SupplierID), invDate, dueDate, b.TotalAmount, createdBy)
 	c.JSON(http.StatusCreated, gin.H{"message": "Invoice dibuat", "id": id})
 }
@@ -473,7 +472,7 @@ func (h *Handler) GetBudgets(c *gin.Context) {
 		SELECT id, name,
 		       COALESCE(total_amount,0), COALESCE(spent_amount,0),
 		       period_start, period_end,
-		       EXTRACT(YEAR FROM period_start)::int AS budget_year
+		       YEAR(period_start) AS budget_year
 		FROM budgets ORDER BY created_at DESC`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
@@ -531,7 +530,7 @@ func (h *Handler) CreateBudget(c *gin.Context) {
 	createdBy := c.GetString("user_id")
 	_, err := h.DB.Exec(`
 		INSERT INTO budgets (id,name,total_amount,period_start,period_end,period_type,budget_year,created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		VALUES (?,?,?,?,?,?,?,?)`,
 		id, b.Name, b.TotalAmount, start, end, b.PeriodType, budgetYear, createdBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal buat budget: " + err.Error()})

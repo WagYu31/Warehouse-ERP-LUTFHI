@@ -36,7 +36,7 @@ func (h *Handler) CreateDepartment(c *gin.Context) {
 		return
 	}
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO departments (id, name, description) VALUES ($1,$2,$3)`, id, b.Name, b.Description)
+	h.DB.Exec(`INSERT INTO departments (id, name, description) VALUES (?,?,?)`, id, b.Name, b.Description)
 	c.JSON(http.StatusCreated, gin.H{"message": "Departemen dibuat", "id": id})
 }
 
@@ -50,19 +50,19 @@ func (h *Handler) UpdateDepartment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	h.DB.Exec(`UPDATE departments SET name=$1, description=$2 WHERE id=$3`, b.Name, b.Description, id)
+	h.DB.Exec(`UPDATE departments SET name=?, description=? WHERE id=?`, b.Name, b.Description, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Departemen diperbarui"})
 }
 
 func (h *Handler) DeleteDepartment(c *gin.Context) {
 	id := c.Param("id")
 	var count int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE department_id=$1`, id).Scan(&count)
+	h.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE department_id=?`, id).Scan(&count)
 	if count > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Tidak bisa hapus — %d user masih di departemen ini", count)})
 		return
 	}
-	h.DB.Exec(`DELETE FROM departments WHERE id=$1`, id)
+	h.DB.Exec(`DELETE FROM departments WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Departemen dihapus"})
 }
 
@@ -78,7 +78,7 @@ func (h *Handler) GetLocations(c *gin.Context) {
 		WHERE l.is_active=true`
 	args := []interface{}{}
 	if warehouseID != "" {
-		query += ` AND l.warehouse_id=$1`
+		query += ` AND l.warehouse_id=?`
 		args = append(args, warehouseID)
 	}
 	query += ` ORDER BY l.code`
@@ -117,7 +117,7 @@ func (h *Handler) CreateLocation(c *gin.Context) {
 	}
 	if b.Type == "" { b.Type = "rack" }
 	id := uuid.New().String()
-	_, err := h.DB.Exec(`INSERT INTO locations (id,code,name,type,warehouse_id,capacity,is_active) VALUES ($1,$2,$3,$4,$5,$6,true)`,
+	_, err := h.DB.Exec(`INSERT INTO locations (id,code,name,type,warehouse_id,capacity,is_active) VALUES (?,?,?,?,?,?,true)`,
 		id, b.Code, b.Name, b.Type, b.WarehouseID, b.Capacity)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Kode lokasi sudah ada: " + err.Error()})
@@ -134,13 +134,13 @@ func (h *Handler) UpdateLocation(c *gin.Context) {
 		Capacity int    `json:"capacity"`
 	}
 	c.ShouldBindJSON(&b)
-	h.DB.Exec(`UPDATE locations SET name=$1,type=$2,capacity=$3 WHERE id=$4`, b.Name, b.Type, b.Capacity, id)
+	h.DB.Exec(`UPDATE locations SET name=?,type=?,capacity=? WHERE id=?`, b.Name, b.Type, b.Capacity, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Lokasi diperbarui"})
 }
 
 func (h *Handler) DeleteLocation(c *gin.Context) {
 	id := c.Param("id")
-	h.DB.Exec(`UPDATE locations SET is_active=false WHERE id=$1`, id)
+	h.DB.Exec(`UPDATE locations SET is_active=false WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Lokasi dinonaktifkan"})
 }
 
@@ -206,7 +206,7 @@ func (h *Handler) CreateDeliveryOrder(c *gin.Context) {
 	_, err := h.DB.Exec(`
 		INSERT INTO delivery_orders (id,do_number,outbound_id,recipient_name,recipient_address,
 		recipient_phone,delivery_date,driver,vehicle,notes,created_by,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')`,
 		id, doNum, nullStr(b.OutboundID), b.RecipientName, b.RecipientAddress,
 		b.RecipientPhone, deliveryDate, b.Driver, b.Vehicle, b.Notes, createdBy)
 	if err != nil {
@@ -216,13 +216,13 @@ func (h *Handler) CreateDeliveryOrder(c *gin.Context) {
 
 	// Copy items dari outbound jika ada
 	if b.OutboundID != "" {
-		rows, _ := h.DB.Query(`SELECT item_id, qty FROM outbound_items WHERE outbound_id=$1`, b.OutboundID)
+		rows, _ := h.DB.Query(`SELECT item_id, qty FROM outbound_items WHERE outbound_id=?`, b.OutboundID)
 		defer rows.Close()
 		for rows.Next() {
 			var itemID string
 			var qty int
 			rows.Scan(&itemID, &qty)
-			h.DB.Exec(`INSERT INTO delivery_order_items (id,do_id,item_id,qty) VALUES ($1,$2,$3,$4)`,
+			h.DB.Exec(`INSERT INTO delivery_order_items (id,do_id,item_id,qty) VALUES (?,?,?,?)`,
 				uuid.New().String(), id, itemID, qty)
 		}
 	}
@@ -241,7 +241,7 @@ func (h *Handler) GetDeliveryOrderDetail(c *gin.Context) {
 		       COALESCE(do2.driver,''), COALESCE(do2.vehicle,''), COALESCE(do2.notes,''),
 		       do2.delivery_date, COALESCE(u.name,'')
 		FROM delivery_orders do2 LEFT JOIN users u ON do2.created_by=u.id
-		WHERE do2.id=$1`, id).
+		WHERE do2.id=?`, id).
 		Scan(&doNum, &status, &recipientName, &recipientAddr, &recipientPhone,
 			&driver, &vehicle, &notes, &deliveryDate, &createdBy)
 	if err != nil {
@@ -252,7 +252,7 @@ func (h *Handler) GetDeliveryOrderDetail(c *gin.Context) {
 	rows, _ := h.DB.Query(`
 		SELECT doi.id, i.name, i.sku, doi.qty
 		FROM delivery_order_items doi JOIN items i ON doi.item_id=i.id
-		WHERE doi.do_id=$1`, id)
+		WHERE doi.do_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -279,7 +279,7 @@ func (h *Handler) ConfirmDelivery(c *gin.Context) {
 		Notes      string `json:"notes"`
 	}
 	c.ShouldBindJSON(&b)
-	h.DB.Exec(`UPDATE delivery_orders SET status='delivered', received_by=$1, delivery_notes=$2, delivered_at=$3 WHERE id=$4`,
+	h.DB.Exec(`UPDATE delivery_orders SET status='delivered', received_by=?, delivery_notes=?, delivered_at=? WHERE id=?`,
 		b.ReceivedBy, b.Notes, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "Pengiriman dikonfirmasi selesai"})
 }
@@ -347,12 +347,12 @@ func (h *Handler) CreateReturn(c *gin.Context) {
 
 	tx, _ := h.DB.Begin()
 	tx.Exec(`INSERT INTO returns (id,return_number,return_type,supplier_id,reason,notes,return_date,created_by,status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')`,
+		VALUES (?,?,?,?,?,?,?,?,'pending')`,
 		id, retNum, b.ReturnType, nullStr(b.SupplierID), b.Reason, b.Notes, retDate, createdBy)
 
 	for _, item := range b.Items {
 		tx.Exec(`INSERT INTO return_items (id,return_id,item_id,qty,warehouse_id,unit_price)
-			VALUES ($1,$2,$3,$4,$5,$6)`,
+			VALUES (?,?,?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty, item.WarehouseID, item.UnitPrice)
 	}
 	tx.Commit()
@@ -368,7 +368,7 @@ func (h *Handler) GetReturnDetail(c *gin.Context) {
 		SELECT r.return_number, r.return_type, r.status, COALESCE(r.reason,''),
 		       COALESCE(r.notes,''), r.return_date, COALESCE(u.name,''), COALESCE(s.name,'')
 		FROM returns r LEFT JOIN users u ON r.created_by=u.id LEFT JOIN suppliers s ON r.supplier_id=s.id
-		WHERE r.id=$1`, id).
+		WHERE r.id=?`, id).
 		Scan(&retNum, &retType, &status, &reason, &notes, &retDate, &createdBy, &supplierName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Retur tidak ditemukan"})
@@ -378,7 +378,7 @@ func (h *Handler) GetReturnDetail(c *gin.Context) {
 	rows, _ := h.DB.Query(`
 		SELECT ri.id, i.name, i.sku, ri.qty, ri.unit_price
 		FROM return_items ri JOIN items i ON ri.item_id=i.id
-		WHERE ri.return_id=$1`, id)
+		WHERE ri.return_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -399,13 +399,13 @@ func (h *Handler) GetReturnDetail(c *gin.Context) {
 func (h *Handler) ApproveReturn(c *gin.Context) {
 	id := c.Param("id")
 	var retType string
-	h.DB.QueryRow(`SELECT return_type FROM returns WHERE id=$1`, id).Scan(&retType)
+	h.DB.QueryRow(`SELECT return_type FROM returns WHERE id=?`, id).Scan(&retType)
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`UPDATE returns SET status='approved', updated_at=$1 WHERE id=$2`, time.Now(), id)
+	tx.Exec(`UPDATE returns SET status='approved', updated_at=? WHERE id=?`, time.Now(), id)
 
 	// Kembalikan stok
-	rows, _ := h.DB.Query(`SELECT item_id, qty, warehouse_id FROM return_items WHERE return_id=$1`, id)
+	rows, _ := h.DB.Query(`SELECT item_id, qty, warehouse_id FROM return_items WHERE return_id=?`, id)
 	defer rows.Close()
 	for rows.Next() {
 		var itemID, warehouseID string
@@ -414,8 +414,8 @@ func (h *Handler) ApproveReturn(c *gin.Context) {
 
 		if retType == "from_customer" {
 			// Barang kembali ke gudang — tambah stok
-			tx.Exec(`UPDATE item_stocks SET current_stock = current_stock + $1, last_updated=NOW()
-				WHERE item_id=$2 AND warehouse_id=$3`, qty, itemID, warehouseID)
+			tx.Exec(`UPDATE item_stocks SET current_stock = current_stock + ?, last_updated=NOW()
+				WHERE item_id=? AND warehouse_id=?`, qty, itemID, warehouseID)
 		} else {
 			// Retur ke supplier — stok sudah berkurang saat dibuat PO/Outbound
 			// Tidak perlu adjust stok lagi
@@ -440,7 +440,7 @@ func (h *Handler) GetOutboundDetail(c *gin.Context) {
 		FROM outbound_transactions ot
 		LEFT JOIN warehouses w ON ot.warehouse_id=w.id
 		LEFT JOIN users u ON ot.created_by=u.id
-		WHERE ot.id=$1`, id).
+		WHERE ot.id=?`, id).
 		Scan(&refNum, &status, &notes, &outDate, &warehouseName, &createdBy)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Outbound tidak ditemukan"})
@@ -450,7 +450,7 @@ func (h *Handler) GetOutboundDetail(c *gin.Context) {
 	rows, _ := h.DB.Query(`
 		SELECT oi.id, i.name, i.sku, oi.qty, oi.unit_price
 		FROM outbound_items oi JOIN items i ON oi.item_id=i.id
-		WHERE oi.outbound_id=$1`, id)
+		WHERE oi.outbound_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
@@ -487,7 +487,7 @@ func (h *Handler) GetKartuStok(c *gin.Context) {
 	var sysStock int
 	h.DB.QueryRow(`
 		SELECT COALESCE(current_stock,0) FROM item_stocks 
-		WHERE item_id=$1 AND ($2='' OR warehouse_id=$2)`, itemID, warehouseID).Scan(&sysStock)
+		WHERE item_id=? AND (?='' OR warehouse_id=?)`, itemID, warehouseID).Scan(&sysStock)
 
 	// Mutasi: gabung inbound + outbound + transfer
 	rows, err := h.DB.Query(`
@@ -495,15 +495,15 @@ func (h *Handler) GetKartuStok(c *gin.Context) {
 		FROM inbound_items ii
 		JOIN inbound_transactions t ON ii.inbound_id=t.id
 		JOIN warehouses w ON t.warehouse_id=w.id
-		WHERE ii.item_id=$1 AND t.transaction_date BETWEEN $3 AND $4
-		  AND ($2='' OR t.warehouse_id=$2)
+		WHERE ii.item_id=? AND t.transaction_date BETWEEN ? AND ?
+		  AND (?='' OR t.warehouse_id=?)
 		UNION ALL
 		SELECT 'KELUAR', t.transaction_date, t.ref_number, 0, oi.qty, COALESCE(w.name,'')
 		FROM outbound_items oi
 		JOIN outbound_transactions t ON oi.outbound_id=t.id
 		JOIN warehouses w ON t.warehouse_id=w.id
-		WHERE oi.item_id=$1 AND t.transaction_date BETWEEN $3 AND $4
-		  AND ($2='' OR t.warehouse_id=$2)
+		WHERE oi.item_id=? AND t.transaction_date BETWEEN ? AND ?
+		  AND (?='' OR t.warehouse_id=?)
 		ORDER BY transaction_date ASC`, itemID, warehouseID, from, to)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "opening_stock": 0})
@@ -607,7 +607,7 @@ func (h *Handler) GetBudgetRealization(c *gin.Context) {
 		            THEN ROUND((COALESCE(b.spent_amount,0)/b.total_amount)*100,1)
 		            ELSE 0 END as pct_used
 		FROM budgets b
-		WHERE EXTRACT(YEAR FROM b.start_date) = $1
+		WHERE YEAR(b.start_date) = ?
 		ORDER BY b.period`, year)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
