@@ -316,8 +316,8 @@ func (h *Handler) GetOpnameList(c *gin.Context) {
 		rows.Scan(&id, &ref, &oDate, &status, &warehouseName, &conductedBy, &totalItems, &discrepancy)
 		list = append(list, gin.H{
 			"id": id, "ref_number": ref, "opname_date": oDate.Format("2006-01-02"),
-			"status": status, "warehouse": gin.H{"name": warehouseName},
-			"conducted_by_user": gin.H{"name": conductedBy},
+			"status": status, "warehouse_name": warehouseName,
+			"created_by_name": conductedBy,
 			"total_items": totalItems, "discrepancy_count": discrepancy,
 		})
 	}

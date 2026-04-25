@@ -66,11 +66,19 @@ export default function OpnamePage() {
   const openCount = async () => {
     try {
       const res = await api.get(`/opname/${selected.id}`)
-      const detail = res.data || res
+      // API interceptor returns response.data; backend wraps in { data: {...} }
+      const detail = res?.data || res
+      if (!detail || (!detail.items?.length && !detail.id)) {
+        toast.error('Gagal memuat detail opname'); return
+      }
+      if (!detail.items?.length) {
+        toast.error('Opname ini tidak memiliki item. Tidak bisa diselesaikan.')
+        return
+      }
       setOpnameDetail(detail)
       const initial = {}
       ;(detail.items || []).forEach(item => {
-        initial[item.item_id] = item.physical_count ?? item.system_stock
+        initial[item.item_id] = item.physical_count >= 0 ? item.physical_count : item.system_stock
       })
       setCounts(initial)
       setDetailModal(false)
