@@ -198,23 +198,65 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 		}
 	}
 
-	// ── 4. SLOW MOVERS / DEAD STOCK ──────────────────────
-	sb.WriteString("\n📉 TOP 5 SLOW MOVER (REKOMEN: KURANGI / JANGAN RESTOCK):\n")
-	slowRows, err2 := h.DB.Query(`
+	// ── 4. DEAD STOCK — stok ada, 0 keluar 6 bulan ───────────
+	sb.WriteString("\n🔴 DEAD STOCK (stok menganggur ≥ 6 bulan — REKOMEN: JUAL HABIS / HENTIKAN RESTOCK):\n")
+	deadRows, errD := h.DB.Query(`
 		SELECT i.name, i.sku,
 		       COALESCE(SUM(s.current_stock),0) AS curr_stock,
-		       COALESCE(SUM(oi.qty),0)          AS total_out,
 		       i.min_stock
 		FROM items i
 		JOIN item_stocks s ON s.item_id = i.id
-		LEFT JOIN outbound_items oi ON oi.item_id = i.id
-		LEFT JOIN outbound_transactions ot ON oi.transaction_id = ot.id
-		    AND ot.outbound_date >= $1
 		WHERE i.is_active = true
+		  AND NOT EXISTS (
+		        SELECT 1
+		        FROM outbound_items oi
+		        JOIN outbound_transactions ot ON oi.transaction_id = ot.id
+		        WHERE oi.item_id = i.id
+		          AND ot.outbound_date >= $1
+		      )
 		GROUP BY i.id, i.name, i.sku, i.min_stock
-		HAVING COALESCE(SUM(s.current_stock),0) > i.min_stock * 2
-		ORDER BY total_out ASC, curr_stock DESC
+		HAVING COALESCE(SUM(s.current_stock),0) > 0
+		ORDER BY curr_stock DESC
 		LIMIT 5`, ago6m)
+	if errD == nil {
+		defer deadRows.Close()
+		foundD := false
+		for deadRows.Next() {
+			foundD = true
+			var name, sku string
+			var currStock, minStock int
+			deadRows.Scan(&name, &sku, &currStock, &minStock)
+			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d unit | 0 keluar 6 bulan 🔴\n",
+				name, sku, currStock))
+		}
+		if !foundD {
+			sb.WriteString("  (tidak ada dead stock — semua item bergerak ✅)\n")
+		}
+	}
+
+	// ── 5. SLOW MOVERS — turnover rendah 3 bulan ─────────────
+	sb.WriteString("\n📉 TOP 5 SLOW MOVER (keluar sedikit vs stok — REKOMEN: KURANGI PEMBELIAN):\n")
+	slowRows, err2 := h.DB.Query(`
+		SELECT i.name, i.sku,
+		       COALESCE(SUM(s.current_stock),0)      AS curr_stock,
+		       COALESCE(out_sub.total_out, 0)         AS total_out,
+		       i.min_stock
+		FROM items i
+		JOIN item_stocks s ON s.item_id = i.id
+		LEFT JOIN (
+		    SELECT oi.item_id, SUM(oi.qty) AS total_out
+		    FROM outbound_items oi
+		    JOIN outbound_transactions ot ON oi.transaction_id = ot.id
+		    WHERE ot.outbound_date >= $1
+		    GROUP BY oi.item_id
+		) out_sub ON out_sub.item_id = i.id
+		WHERE i.is_active = true
+		GROUP BY i.id, i.name, i.sku, i.min_stock, out_sub.total_out
+		HAVING COALESCE(SUM(s.current_stock),0) > 0
+		ORDER BY
+		    (COALESCE(out_sub.total_out,0)::float / GREATEST(COALESCE(SUM(s.current_stock),1), 1)) ASC,
+		    curr_stock DESC
+		LIMIT 5`, ago3m)
 	if err2 == nil {
 		defer slowRows.Close()
 		found2 := false
@@ -223,23 +265,25 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 			var name, sku string
 			var currStock, totalOut, minStock int
 			slowRows.Scan(&name, &sku, &currStock, &totalOut, &minStock)
-			label := "🟡 slow-moving"
+			turnover := 0.0
+			if currStock > 0 {
+				turnover = float64(totalOut) / float64(currStock) * 100
+			}
+			label := "🟡 slow"
 			if totalOut == 0 {
-				label = "🔴 DEAD STOCK (0 keluar 6 bln)"
+				label = "🔴 tidak bergerak"
+			} else if turnover < 10 {
+				label = "🟠 sangat lambat"
 			}
-			overstock := 0
-			if minStock > 0 {
-				overstock = currStock / minStock
-			}
-			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d (%dx min) | keluar %d/6bln | %s\n",
-				name, sku, currStock, overstock, totalOut, label))
+			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d | keluar %d/3bln | turnover %.0f%% | %s\n",
+				name, sku, currStock, totalOut, turnover, label))
 		}
 		if !found2 {
 			sb.WriteString("  (semua item bergerak normal ✅)\n")
 		}
 	}
 
-	// ── 5. Critical items ────────────────────────────────
+	// ── 6. Critical items ────────────────────────────────
 	sb.WriteString("\n🚨 ITEM KRITIS (RESTOCK SEGERA):\n")
 	critRows, err3 := h.DB.Query(`
 		SELECT i.name, i.sku, i.min_stock, COALESCE(SUM(s.current_stock),0) as curr
