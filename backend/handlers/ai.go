@@ -101,7 +101,6 @@ func (h *Handler) AIChat(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"reply": reply})
 }
 
-// ── System prompt builder ─────────────────────────────────────
 func buildSystemPrompt(name, role, ctx string) string {
 	roleDesc := map[string]string{
 		"admin":               "Administrator (akses penuh WMS & ERP)",
@@ -114,106 +113,180 @@ func buildSystemPrompt(name, role, ctx string) string {
 		desc = role
 	}
 
-	return fmt.Sprintf(`Kamu adalah AI Asisten WMS LUTFHI (Warehouse Management System & ERP).
+	return fmt.Sprintf(`Kamu adalah AI Asisten WMS LUTFHI yang cerdas (Warehouse Management System & ERP).
 Pengguna: %s | Jabatan: %s | Tanggal: %s
 
-📊 DATA SISTEM REAL-TIME:
+📊 DATA INVENTARIS REAL-TIME (gunakan data ini untuk analisis):
 %s
 
 PANDUAN MENJAWAB:
-- Gunakan Bahasa Indonesia yang ramah, singkat, dan profesional
-- Selalu gunakan data nyata di atas jika relevan dengan pertanyaan pengguna
-- Format angka Indonesia: 1.250.000 (titik pemisah ribuan)
-- Maksimal 200 kata per jawaban, fokus dan padat
-- Gunakan emoji agar mudah dibaca (📦 💰 📊 🚨 ✅)
-- Jika tidak ada data relevan, sampaikan dengan jujur
-- Jangan membuat data fiktif — hanya gunakan data yang tersedia di atas`,
+- Bahasa Indonesia, ramah, profesional, padat (maks 250 kata)
+- SELALU gunakan data nyata di atas — jangan buat data fiktif
+- Format angka: 1.250.000 (titik pemisah ribuan)
+- Gunakan emoji agar mudah dibaca
+- Jika ditanya rekomendasi/analisis, berikan rekomendasi KONKRET berdasarkan data:
+  * Barang bergerak cepat (fast mover) → rekomen PERBANYAK stok / segera restock
+  * Barang slow-moving / dead stock → rekomen KURANGI pembelian / jual habis dulu
+  * Barang kritis (stok ≤ min) → rekomen RESTOCK SEGERA dengan perkiraan jumlah
+- Sertakan nama item, SKU, dan angka spesifik dalam rekomendasi`,
 		name, desc, time.Now().Format("02 January 2006"), ctx)
 }
 
-// ── DB context builder by role ────────────────────────────────
+// ── DB context builder — fast movers, slow movers, analytics ─
 func (h *Handler) buildWMSContext(role, userID string) string {
 	var sb strings.Builder
-	now := time.Now()
-	thisMonth := now.Format("2006-01")
+	now      := time.Now()
+	thisMon  := now.Format("2006-01")
+	ago3m    := now.AddDate(0, -3, 0).Format("2006-01-02")
+	ago6m    := now.AddDate(0, -6, 0).Format("2006-01-02")
 
-	// ── Universal: Inventory overview ──
+	// ── 1. Inventory overview ─────────────────────────────
 	var totalItems, criticalItems, totalWarehouses int
 	h.DB.QueryRow(`SELECT COUNT(*) FROM items WHERE is_active=true`).Scan(&totalItems)
 	h.DB.QueryRow(`SELECT COUNT(DISTINCT i.id) FROM items i
 		JOIN item_stocks s ON i.id=s.item_id
 		WHERE s.current_stock <= i.min_stock AND i.is_active=true`).Scan(&criticalItems)
 	h.DB.QueryRow(`SELECT COUNT(*) FROM warehouses WHERE is_active=true`).Scan(&totalWarehouses)
-	sb.WriteString(fmt.Sprintf("📦 Inventaris: %d item aktif | %d item kritis | %d gudang aktif\n",
+	sb.WriteString(fmt.Sprintf("📦 Inventaris: %d item aktif | %d kritis | %d gudang\n",
 		totalItems, criticalItems, totalWarehouses))
 
-	// ── Monthly transactions ──
+	// ── 2. Transaksi bulan ini ────────────────────────────
 	var inMth, outMth int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM inbound_records
-		WHERE TO_CHAR(receipt_date,'YYYY-MM')=$1`, thisMonth).Scan(&inMth)
-	h.DB.QueryRow(`SELECT COUNT(*) FROM outbound_records
-		WHERE TO_CHAR(delivery_date,'YYYY-MM')=$1`, thisMonth).Scan(&outMth)
-	sb.WriteString(fmt.Sprintf("🔄 Transaksi bulan ini: %d barang masuk | %d barang keluar\n", inMth, outMth))
+	h.DB.QueryRow(`SELECT COUNT(*) FROM inbound_transactions
+		WHERE TO_CHAR(received_date,'YYYY-MM')=$1`, thisMon).Scan(&inMth)
+	h.DB.QueryRow(`SELECT COUNT(*) FROM outbound_transactions
+		WHERE TO_CHAR(outbound_date,'YYYY-MM')=$1`, thisMon).Scan(&outMth)
+	sb.WriteString(fmt.Sprintf("🔄 Bulan ini: %d masuk | %d keluar\n", inMth, outMth))
 
-	// ── SPB (Requests) ──
 	var pendingReq int
 	h.DB.QueryRow(`SELECT COUNT(*) FROM requests WHERE status='pending'`).Scan(&pendingReq)
 	sb.WriteString(fmt.Sprintf("📋 SPB Pending: %d\n", pendingReq))
 
-	// ── Finance context (finance, admin, manager) ──
-	if role == "finance_procurement" || role == "admin" || role == "manager" {
-		var totalPO, pendingPO int
-		var totalInv, unpaidInv int
-		var budgetTotal, budgetUsed float64
-
-		h.DB.QueryRow(`SELECT COUNT(*), COUNT(CASE WHEN status IN ('draft','sent') THEN 1 END)
-			FROM purchase_orders`).Scan(&totalPO, &pendingPO)
-		h.DB.QueryRow(`SELECT COUNT(*), COUNT(CASE WHEN status IN ('unpaid','overdue') THEN 1 END)
-			FROM invoices`).Scan(&totalInv, &unpaidInv)
-		h.DB.QueryRow(`SELECT COALESCE(SUM(total_budget),0), COALESCE(SUM(used_budget),0)
-			FROM budgets`).Scan(&budgetTotal, &budgetUsed)
-
-		sb.WriteString(fmt.Sprintf("🛒 Purchase Order: %d total | %d pending\n", totalPO, pendingPO))
-		sb.WriteString(fmt.Sprintf("📄 Invoice: %d total | %d belum dibayar\n", totalInv, unpaidInv))
-		sb.WriteString(fmt.Sprintf("💰 Anggaran: Total Rp %.0f | Terpakai Rp %.0f | Sisa Rp %.0f\n",
-			budgetTotal, budgetUsed, budgetTotal-budgetUsed))
-
-		// Overdue invoices
-		var overdueCount int
-		h.DB.QueryRow(`SELECT COUNT(*) FROM invoices WHERE status='overdue'`).Scan(&overdueCount)
-		if overdueCount > 0 {
-			sb.WriteString(fmt.Sprintf("🚨 Invoice OVERDUE: %d (perlu tindakan segera!)\n", overdueCount))
+	// ── 3. FAST MOVERS — top 5 keluar 3 bulan terakhir ───
+	sb.WriteString("\n📈 TOP 5 FAST MOVER (REKOMEN: PERBANYAK / RESTOCK)::\n")
+	fastRows, err1 := h.DB.Query(`
+		SELECT i.name, i.sku,
+		       COALESCE(SUM(oi.qty),0)          AS total_out,
+		       COALESCE(SUM(s.current_stock),0) AS curr_stock,
+		       i.min_stock
+		FROM outbound_items oi
+		JOIN outbound_transactions ot ON oi.transaction_id = ot.id
+		JOIN items i ON oi.item_id = i.id
+		LEFT JOIN item_stocks s ON s.item_id = i.id
+		WHERE ot.outbound_date >= $1
+		GROUP BY i.id, i.name, i.sku, i.min_stock
+		ORDER BY total_out DESC LIMIT 5`, ago3m)
+	if err1 == nil {
+		defer fastRows.Close()
+		found := false
+		for fastRows.Next() {
+			found = true
+			var name, sku string
+			var totalOut, currStock, minStock int
+			fastRows.Scan(&name, &sku, &totalOut, &currStock, &minStock)
+			status := "✅ aman"
+			if currStock <= minStock {
+				status = "🚨 KRITIS"
+			} else if currStock <= minStock*2 {
+				status = "⚠️ menipis"
+			}
+			sb.WriteString(fmt.Sprintf("  • %s [%s]: keluar %d/3bln | stok %d | min %d | %s\n",
+				name, sku, totalOut, currStock, minStock, status))
+		}
+		if !found {
+			sb.WriteString("  (belum ada data outbound)\n")
 		}
 	}
 
-	// ── Top 5 critical items ──
-	rows, err := h.DB.Query(`
+	// ── 4. SLOW MOVERS / DEAD STOCK ──────────────────────
+	sb.WriteString("\n📉 TOP 5 SLOW MOVER (REKOMEN: KURANGI / JANGAN RESTOCK):\n")
+	slowRows, err2 := h.DB.Query(`
+		SELECT i.name, i.sku,
+		       COALESCE(SUM(s.current_stock),0) AS curr_stock,
+		       COALESCE(SUM(oi.qty),0)          AS total_out,
+		       i.min_stock
+		FROM items i
+		JOIN item_stocks s ON s.item_id = i.id
+		LEFT JOIN outbound_items oi ON oi.item_id = i.id
+		LEFT JOIN outbound_transactions ot ON oi.transaction_id = ot.id
+		    AND ot.outbound_date >= $1
+		WHERE i.is_active = true
+		GROUP BY i.id, i.name, i.sku, i.min_stock
+		HAVING COALESCE(SUM(s.current_stock),0) > i.min_stock * 2
+		ORDER BY total_out ASC, curr_stock DESC
+		LIMIT 5`, ago6m)
+	if err2 == nil {
+		defer slowRows.Close()
+		found2 := false
+		for slowRows.Next() {
+			found2 = true
+			var name, sku string
+			var currStock, totalOut, minStock int
+			slowRows.Scan(&name, &sku, &currStock, &totalOut, &minStock)
+			label := "🟡 slow-moving"
+			if totalOut == 0 {
+				label = "🔴 DEAD STOCK (0 keluar 6 bln)"
+			}
+			overstock := 0
+			if minStock > 0 {
+				overstock = currStock / minStock
+			}
+			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d (%dx min) | keluar %d/6bln | %s\n",
+				name, sku, currStock, overstock, totalOut, label))
+		}
+		if !found2 {
+			sb.WriteString("  (semua item bergerak normal ✅)\n")
+		}
+	}
+
+	// ── 5. Critical items ────────────────────────────────
+	sb.WriteString("\n🚨 ITEM KRITIS (RESTOCK SEGERA):\n")
+	critRows, err3 := h.DB.Query(`
 		SELECT i.name, i.sku, i.min_stock, COALESCE(SUM(s.current_stock),0) as curr
 		FROM items i JOIN item_stocks s ON i.id=s.item_id
 		WHERE s.current_stock <= i.min_stock AND i.is_active=true
 		GROUP BY i.id, i.name, i.sku, i.min_stock
 		ORDER BY curr ASC LIMIT 5`)
-	if err == nil {
-		defer rows.Close()
-		sb.WriteString("🚨 5 Item Paling Kritis:\n")
-		found := false
-		for rows.Next() {
-			found = true
+	if err3 == nil {
+		defer critRows.Close()
+		found3 := false
+		for critRows.Next() {
+			found3 = true
 			var name, sku string
 			var minStock, curr int
-			rows.Scan(&name, &sku, &minStock, &curr)
-			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d / min %d\n", name, sku, curr, minStock))
+			critRows.Scan(&name, &sku, &minStock, &curr)
+			gap := minStock - curr
+			sb.WriteString(fmt.Sprintf("  • %s [%s]: stok %d/min %d (butuh %d unit lagi)\n",
+				name, sku, curr, minStock, gap))
 		}
-		if !found {
-			sb.WriteString("  (tidak ada item kritis saat ini ✅)\n")
+		if !found3 {
+			sb.WriteString("  (tidak ada item kritis ✅)\n")
 		}
 	}
 
-	// ── Stock opname pending ──
+	// ── 6. Finance (admin/finance/manager only) ───────────
+	if role == "finance_procurement" || role == "admin" || role == "manager" {
+		var totalPO, pendingPO, totalInv, unpaidInv, overdueInv int
+		var budgetTotal, budgetUsed float64
+		h.DB.QueryRow(`SELECT COUNT(*), COUNT(CASE WHEN status IN ('draft','sent') THEN 1 END)
+			FROM purchase_orders`).Scan(&totalPO, &pendingPO)
+		h.DB.QueryRow(`SELECT COUNT(*), COUNT(CASE WHEN status='unpaid' THEN 1 END)
+			FROM invoices`).Scan(&totalInv, &unpaidInv)
+		h.DB.QueryRow(`SELECT COUNT(*) FROM invoices WHERE status='overdue'`).Scan(&overdueInv)
+		h.DB.QueryRow(`SELECT COALESCE(SUM(total_budget),0), COALESCE(SUM(used_budget),0)
+			FROM budgets`).Scan(&budgetTotal, &budgetUsed)
+		sb.WriteString(fmt.Sprintf("\n💰 Anggaran: Total Rp %.0f | Pakai Rp %.0f | Sisa Rp %.0f\n",
+			budgetTotal, budgetUsed, budgetTotal-budgetUsed))
+		sb.WriteString(fmt.Sprintf("🛒 PO: %d total | %d pending\n", totalPO, pendingPO))
+		sb.WriteString(fmt.Sprintf("📄 Invoice: %d total | %d unpaid | %d 🚨OVERDUE\n",
+			totalInv, unpaidInv, overdueInv))
+	}
+
+	// ── 7. Opname berjalan ────────────────────────────────
 	var opnamePending int
 	h.DB.QueryRow(`SELECT COUNT(*) FROM stock_opnames WHERE status='in_progress'`).Scan(&opnamePending)
 	if opnamePending > 0 {
-		sb.WriteString(fmt.Sprintf("📋 Stock Opname sedang berjalan: %d\n", opnamePending))
+		sb.WriteString(fmt.Sprintf("📋 Opname berjalan: %d\n", opnamePending))
 	}
 
 	return sb.String()
@@ -224,8 +297,8 @@ func callGroqAPI(apiKey string, msgs []groqMsg) (string, error) {
 	payload := groqRequest{
 		Model:       "llama-3.1-8b-instant",
 		Messages:    msgs,
-		MaxTokens:   450,
-		Temperature: 0.65,
+		MaxTokens:   600,
+		Temperature: 0.5,
 		Stream:      false,
 	}
 

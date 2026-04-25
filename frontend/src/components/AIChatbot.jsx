@@ -6,10 +6,10 @@ import { useThemeStore } from '@/store/themeStore'
 
 // ── Quick suggestion chips per role ──────────────────────────
 const QUICK_CHIPS = {
-  admin:               ['📦 Berapa item yang kritis?', '📊 Ringkasan inventaris', '🔄 Transaksi bulan ini?', '🚨 Item stok paling rendah'],
-  staff:               ['📦 Item kritis sekarang?', '🔄 Barang masuk bulan ini?', '📋 SPB pending berapa?', '🚨 Item hampir habis?'],
-  finance_procurement: ['💰 Sisa anggaran berapa?', '📄 Invoice belum dibayar?', '🛒 PO yang masih pending?', '🚨 Ada invoice overdue?'],
-  manager:             ['📊 Ringkasan semua modul', '💰 Status anggaran bulan ini?', '📦 Kondisi inventaris?', '📄 Laporan keuangan?'],
+  admin:               ['📈 Barang apa yang perlu diperbanyak?', '📉 Barang slow-moving apa?', '🚨 Item kritis sekarang?', '📊 Ringkasan inventaris'],
+  staff:               ['📈 Barang fast-moving?', '📉 Dead stock ada?', '🚨 Item hampir habis?', '📋 SPB pending berapa?'],
+  finance_procurement: ['💰 Sisa anggaran berapa?', '📄 Invoice belum dibayar?', '📈 Rekomen restock apa?', '🚨 Ada invoice overdue?'],
+  manager:             ['📊 Analisis pergerakan barang?', '📈 Rekomen perbanyak stok?', '📉 Barang yang harus dikurangi?', '💰 Status anggaran?'],
 }
 
 // ── Typing dots animation ─────────────────────────────────────
