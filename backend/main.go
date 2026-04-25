@@ -217,8 +217,8 @@ func main() {
 			protected.GET("/requests", h.GetRequests)
 			protected.POST("/requests", middleware.RequireRole("admin", "staff", "requester"), h.CreateRequest)
 			protected.GET("/requests/:id", h.GetRequestDetail)
-			protected.PUT("/requests/:id/approve", middleware.RequireRole("admin", "staff"), h.ApproveRequest)
-			protected.PUT("/requests/:id/reject", middleware.RequireRole("admin", "staff"), h.RejectRequest)
+			protected.PUT("/requests/:id/approve", middleware.RequireRole("admin"), h.ApproveRequest)
+			protected.PUT("/requests/:id/reject", middleware.RequireRole("admin"), h.RejectRequest)
 
 			// Stock Opname
 			protected.GET("/opname", h.GetOpnameList)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ClipboardList, Plus, Check, X } from 'lucide-react'
+import { ClipboardList, Plus, Check, X, Eye, FileText, User } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
@@ -15,6 +15,15 @@ const COLS = [
   { key: 'status',              label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
+function DR({ label, value }) {
+  return (
+    <div className="flex justify-between items-start py-2 border-b border-white/[0.05] last:border-0">
+      <span className="text-slate-500 text-xs">{label}</span>
+      <span className="text-sm font-medium text-white text-right max-w-[60%]">{value ?? '—'}</span>
+    </div>
+  )
+}
+
 export default function RequestsPage() {
   const { user } = useAuthStore()
   const [data, setData]       = useState([])
@@ -24,9 +33,11 @@ export default function RequestsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [form, setForm]       = useState({ required_date:'', purpose:'', priority:'normal', department_id:'', notes:'' })
   const [lines, setLines]     = useState([{ item_id:'', qty_requested:1 }])
-  const canApprove = ['admin','manager'].includes(user?.role)
+  const canApprove = user?.role === 'admin'
 
   const load = async () => {
     setLoading(true)
@@ -64,19 +75,9 @@ export default function RequestsPage() {
     toast.success('SPB ditolak'); load()
   }
 
-  const colsWithAction = canApprove ? [
-    ...COLS,
-    { key: 'id', label: 'Aksi', render: (v, row) => row.status === 'pending' ? (
-      <div className="flex gap-1">
-        <button onClick={() => approve(row)} className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all">
-          <Check size={13} />
-        </button>
-        <button onClick={() => reject(row)} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all">
-          <X size={13} />
-        </button>
-      </div>
-    ) : null }
-  ] : COLS
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
+
+  const PRIORITY_LABEL = { urgent: '🔴 Urgent', normal: '🟡 Normal', low: '🟢 Rendah' }
 
   return (
     <PageShell>
@@ -93,8 +94,63 @@ export default function RequestsPage() {
       </div>
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={colsWithAction} data={data} loading={loading} emptyMessage="Belum ada SPB" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada SPB" />
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
+            <Eye size={14} className="text-blue-400" />
+          </div>
+          <div>
+            <div className="text-white font-bold">{selected?.ref_number}</div>
+            <div className="text-slate-500 text-xs">Surat Permintaan Barang</div>
+          </div>
+        </div>
+      }>
+        {selected && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={14} className="text-blue-400" />
+                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Info SPB</span>
+                </div>
+                <DR label="No. SPB" value={selected.ref_number} />
+                <DR label="Tgl. Dibutuhkan" value={selected.required_date ? new Date(selected.required_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'} />
+                <DR label="Prioritas" value={PRIORITY_LABEL[selected.priority] || selected.priority} />
+                <DR label="Jumlah Item" value={selected.item_count || '—'} />
+                <DR label="Status" value={<StatusBadge value={selected.status} />} />
+              </div>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <User size={14} className="text-blue-400" />
+                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Pemohon</span>
+                </div>
+                <DR label="Diajukan Oleh" value={selected.requested_by_name || '—'} />
+                <DR label="Departemen" value={selected.department_name || '—'} />
+                <DR label="Keperluan" value={selected.purpose || '—'} />
+              </div>
+            </div>
+            {selected.notes && (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500 mb-1">Catatan</p>
+                <p className="text-sm text-slate-300">{selected.notes}</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              {canApprove && selected.status === 'pending' && (
+                <>
+                  <button onClick={() => { approve(selected); setDetailModal(false) }} className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 font-medium text-sm">✅ Approve</button>
+                  <button onClick={() => { reject(selected); setDetailModal(false) }} className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-medium text-sm">❌ Tolak</button>
+                </>
+              )}
+              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white font-semibold text-sm">Tutup</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Buat SPB Baru" size="lg">
         <div className="space-y-4">
