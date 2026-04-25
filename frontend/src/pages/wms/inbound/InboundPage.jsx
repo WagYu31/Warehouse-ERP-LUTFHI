@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowDownCircle, Plus, Eye } from 'lucide-react'
+import { ArrowDownCircle, Plus, Eye, Package, Building2, Calendar, FileText } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -10,8 +10,17 @@ const COLS = [
   { key: 'received_date', label: 'Tanggal', render: v => v ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
   { key: 'supplier_name', label: 'Supplier', render: v => <span className="text-slate-300">{v || '—'}</span> },
   { key: 'warehouse_name', label: 'Gudang', render: v => v || '—' },
-  { key: 'status',     label: 'Status', render: v => <StatusBadge value={v} /> },
+  { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
+
+function DR({ label, value }) {
+  return (
+    <div className="flex justify-between items-start py-2 border-b border-white/[0.05] last:border-0">
+      <span className="text-slate-500 text-xs">{label}</span>
+      <span className="text-sm font-medium text-white text-right max-w-[60%]">{value ?? '—'}</span>
+    </div>
+  )
+}
 
 export default function InboundPage() {
   const { user } = useAuthStore()
@@ -23,6 +32,8 @@ export default function InboundPage() {
   const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [form, setForm]       = useState({ supplier_id:'', warehouse_id:'', received_date:'', notes:'', items:[] })
   const [lines, setLines]     = useState([{ item_id:'', qty:1, unit_price:0 }])
 
@@ -54,13 +65,80 @@ export default function InboundPage() {
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
 
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
+
+  const confirmGRN = async () => {
+    if (!selected) return
+    try {
+      await api.put(`/inbound/${selected.id}/confirm`, {})
+      toast.success(`GRN ${selected.ref_number} dikonfirmasi!`)
+      setDetailModal(false)
+      load()
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal konfirmasi') }
+  }
+
   return (
     <PageShell>
       <PageHeader icon={ArrowDownCircle} title="Barang Masuk (GRN)" subtitle="Goods Receipt Note" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Catat Masuk" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nomor GRN atau supplier..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada penerimaan barang" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada penerimaan barang" />
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gold-500/15 border border-gold-500/20 flex items-center justify-center">
+            <Eye size={14} className="text-gold-400" />
+          </div>
+          <div>
+            <div className="text-white font-bold">{selected?.ref_number}</div>
+            <div className="text-slate-500 text-xs">Goods Receipt Note</div>
+          </div>
+        </div>
+      }>
+        {selected && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={14} className="text-gold-400" />
+                  <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider">Info Dokumen</span>
+                </div>
+                <DR label="No. GRN" value={selected.ref_number} />
+                <DR label="Tanggal Terima" value={selected.received_date ? new Date(selected.received_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'} />
+                <DR label="Status" value={<StatusBadge value={selected.status} />} />
+              </div>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={14} className="text-gold-400" />
+                  <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider">Supplier & Gudang</span>
+                </div>
+                <DR label="Supplier" value={selected.supplier_name || '—'} />
+                <DR label="Gudang Tujuan" value={selected.warehouse_name || '—'} />
+                <DR label="Dicatat Oleh" value={selected.created_by_name || '—'} />
+              </div>
+            </div>
+            {selected.notes && (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500 mb-1">Catatan</p>
+                <p className="text-sm text-slate-300">{selected.notes}</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              {canCreate && selected?.status === 'pending' && (
+                <button
+                  onClick={confirmGRN}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm flex items-center gap-2"
+                >
+                  ✅ Konfirmasi Penerimaan
+                </button>
+              )}
+              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">Tutup</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Catat Barang Masuk" size="xl">
         <div className="space-y-5">
@@ -82,7 +160,6 @@ export default function InboundPage() {
             <Input type="date" value={form.received_date} onChange={e => setForm({...form, received_date:e.target.value})} />
           </FormField>
 
-          {/* Item Lines */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Detail Item</label>
