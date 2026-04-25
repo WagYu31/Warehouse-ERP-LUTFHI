@@ -469,17 +469,34 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 }
 
 func (h *Handler) GetBudgets(c *gin.Context) {
-	rows, _ := h.DB.Query(`SELECT id, name, total_amount, spent_amount, period_start, period_end FROM budgets ORDER BY created_at DESC`)
+	rows, err := h.DB.Query(`
+		SELECT id, name,
+		       COALESCE(total_amount,0), COALESCE(spent_amount,0),
+		       period_start, period_end,
+		       EXTRACT(YEAR FROM period_start)::int AS budget_year
+		FROM budgets ORDER BY created_at DESC`)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
+		return
+	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
 		var id, name string
 		var total, spent float64
 		var start, end time.Time
-		rows.Scan(&id, &name, &total, &spent, &start, &end)
+		var budgetYear int
+		rows.Scan(&id, &name, &total, &spent, &start, &end, &budgetYear)
 		list = append(list, gin.H{
-			"id": id, "name": name, "total": total, "spent": spent,
-			"period_start": start.Format("2006-01-02"), "period_end": end.Format("2006-01-02"),
+			"id": id, "name": name,
+			"total_budget":   total,
+			"used_budget":    spent,
+			"total_amount":   total,
+			"spent_amount":   spent,
+			"budget_year":    budgetYear,
+			"period_start":  start.Format("2006-01-02"),
+			"period_end":    end.Format("2006-01-02"),
+			"department_name": "",
 		})
 	}
 	if list == nil { list = []gin.H{} }
@@ -494,13 +511,32 @@ func (h *Handler) CreateBudget(c *gin.Context) {
 		PeriodEnd   string  `json:"period_end"`
 		PeriodType  string  `json:"period_type"`
 	}
-	c.ShouldBindJSON(&b)
+	if err := c.ShouldBindJSON(&b); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	if b.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Nama anggaran wajib diisi"})
+		return
+	}
+	if b.PeriodStart == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Tanggal mulai wajib diisi"})
+		return
+	}
 	id := uuid.New().String()
 	start, _ := time.Parse("2006-01-02", b.PeriodStart)
-	end, _ := time.Parse("2006-01-02", b.PeriodEnd)
+	end, _   := time.Parse("2006-01-02", b.PeriodEnd)
+	budgetYear := start.Year()  // auto-derive dari period_start
+	if b.PeriodType == "" { b.PeriodType = "monthly" }
 	createdBy := c.GetString("user_id")
-	h.DB.Exec(`INSERT INTO budgets (id,name,total_amount,period_start,period_end,period_type,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		id, b.Name, b.TotalAmount, start, end, b.PeriodType, createdBy)
+	_, err := h.DB.Exec(`
+		INSERT INTO budgets (id,name,total_amount,period_start,period_end,period_type,budget_year,created_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		id, b.Name, b.TotalAmount, start, end, b.PeriodType, budgetYear, createdBy)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal buat budget: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Budget dibuat", "id": id})
 }
 
