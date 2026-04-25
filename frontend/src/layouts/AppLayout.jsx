@@ -24,31 +24,25 @@ const NAV = [
   {
     label: 'Manajemen Gudang',
     icon: Package,
+    roles: ['admin', 'staff', 'manager', 'requester'],
     children: [
-      { label: 'Inventaris Stok',    icon: Search,         to: '/inventory' },
-      { label: 'Barang Masuk (GRN)', icon: ArrowDownCircle,to: '/inbound' },
-      { label: 'Barang Keluar',      icon: ArrowUpCircle,  to: '/outbound' },
+      { label: 'Inventaris Stok',    icon: Search,         to: '/inventory',        roles: ['admin','staff','manager'] },
+      { label: 'Barang Masuk (GRN)', icon: ArrowDownCircle,to: '/inbound',          roles: ['admin','staff'] },
+      { label: 'Barang Keluar',      icon: ArrowUpCircle,  to: '/outbound',         roles: ['admin','staff'] },
       { label: 'Permintaan (SPB)',   icon: ClipboardList,  to: '/requests' },
-      { label: 'Stock Opname',       icon: RefreshCcw,     to: '/opname' },
-      { label: 'Transfer Stok',      icon: ArrowLeftRight, to: '/stock-transfer', roles: ['admin','staff'] },
-      { label: 'Surat Jalan (DO)',   icon: Send,           to: '/delivery-orders', roles: ['admin','staff'] },
-      { label: 'Retur Barang',       icon: RotateCcw,      to: '/returns' },
+      { label: 'Stock Opname',       icon: RefreshCcw,     to: '/opname',           roles: ['admin','staff','manager'] },
+      { label: 'Transfer Stok',      icon: ArrowLeftRight, to: '/stock-transfer',   roles: ['admin','staff'] },
+      { label: 'Surat Jalan (DO)',   icon: Send,           to: '/delivery-orders',  roles: ['admin','staff'] },
+      { label: 'Retur Barang',       icon: RotateCcw,      to: '/returns',          roles: ['admin','staff'] },
     ],
   },
   {
-    label: 'Laporan',
+    label: 'Laporan & ERP',
     icon: BarChart2,
     roles: ['admin', 'finance_procurement', 'manager'],
     children: [
-      { label: 'Kartu Stok',       icon: BarChart2, to: '/reports' },
-      { label: 'Laporan ERP',      icon: BarChart3, to: '/erp/reports' },
-    ],
-  },
-  {
-    label: 'ERP Mini',
-    icon: BarChart3,
-    roles: ['admin', 'finance_procurement', 'manager'],
-    children: [
+      { label: 'Kartu Stok',       icon: BarChart2,    to: '/reports' },
+      { label: 'Laporan ERP',      icon: BarChart3,    to: '/erp/reports' },
       { label: 'Purchase Order',   icon: ShoppingCart, to: '/erp/purchase-orders', roles: ['admin','finance_procurement'] },
       { label: 'Supplier',         icon: Truck,        to: '/erp/suppliers',        roles: ['admin','finance_procurement'] },
       { label: 'Invoice',          icon: FileText,     to: '/erp/invoices',         roles: ['admin','finance_procurement'] },
@@ -84,6 +78,12 @@ function SidebarItem({ item, userRole, onClose }) {
   )
 
   if (item.roles && !item.roles.includes(userRole)) return null
+
+  // Sembunyikan group jika tidak ada child yang visible untuk role ini
+  if (item.children) {
+    const visibleChildren = item.children.filter(c => !c.roles || c.roles.includes(userRole))
+    if (visibleChildren.length === 0) return null
+  }
 
   if (!item.children) {
     return (
