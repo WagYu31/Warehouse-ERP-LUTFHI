@@ -244,6 +244,9 @@ func main() {
 			// Dashboard stats
 			protected.GET("/dashboard/stats", h.GetDashboardStats)
 
+			// AI Chat
+			protected.POST("/ai/chat", h.AIChat)
+
 			// ERP
 			erp := protected.Group("/erp")
 			erp.Use(middleware.RequireRole("admin", "finance_procurement", "manager"))
