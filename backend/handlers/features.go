@@ -387,17 +387,17 @@ func (h *Handler) GetOpnameDetail(c *gin.Context) {
 	}
 
 	rows, _ := h.DB.Query(`
-		SELECT oi.id, i.name, i.sku, oi.system_stock, oi.physical_count, oi.discrepancy
+		SELECT oi.id, oi.item_id, i.name, i.sku, oi.system_stock, oi.physical_count, oi.discrepancy
 		FROM opname_items oi JOIN items i ON oi.item_id=i.id
 		WHERE oi.opname_id=$1 ORDER BY i.name`, id)
 	defer rows.Close()
 	var items []gin.H
 	for rows.Next() {
-		var iid, name, sku string
+		var iid, itemID, name, sku string
 		var sysStock, physCount, disc int
-		rows.Scan(&iid, &name, &sku, &sysStock, &physCount, &disc)
+		rows.Scan(&iid, &itemID, &name, &sku, &sysStock, &physCount, &disc)
 		items = append(items, gin.H{
-			"id": iid, "name": name, "sku": sku,
+			"id": iid, "item_id": itemID, "name": name, "sku": sku,
 			"system_stock": sysStock, "physical_count": physCount, "discrepancy": disc,
 		})
 	}
