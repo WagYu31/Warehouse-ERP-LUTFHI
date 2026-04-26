@@ -19,7 +19,7 @@ const COLS = [
   { key: 'is_active',      label: 'Status', render: v => <StatusBadge value={v ? 'active' : 'inactive'} /> },
 ]
 
-const ROLES = ['admin','staff','finance_procurement','manager','requester']
+const ROLES = ['admin','staff','finance_procurement','manager']
 
 export default function UsersPage() {
   const [data, setData]             = useState([])

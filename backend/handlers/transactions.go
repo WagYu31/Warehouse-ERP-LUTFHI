@@ -211,8 +211,6 @@ func (h *Handler) CreateOutbound(c *gin.Context) {
 // ── SPB (Requests) ────────────────────────────────────────────
 func (h *Handler) GetRequests(c *gin.Context) {
 	status := c.Query("status")
-	requesterID := c.GetString("user_id")
-	role := c.GetString("role")
 
 	q := `SELECT r.id, r.ref_number,
 			COALESCE(DATE_FORMAT(r.required_date,'%Y-%m-%d'),''),
@@ -225,10 +223,6 @@ func (h *Handler) GetRequests(c *gin.Context) {
 		  WHERE 1=1`
 	args := []interface{}{}
 
-	if role == "requester" {
-		q += ` AND r.requested_by=?`
-		args = append(args, requesterID)
-	}
 	if status != "" {
 		q += ` AND r.status=?`
 		args = append(args, status)
