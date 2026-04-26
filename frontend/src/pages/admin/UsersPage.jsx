@@ -48,8 +48,8 @@ export default function UsersPage() {
 
   useEffect(() => { load() }, [search])
 
-  const openAdd  = () => { setEditing(null); setForm({ name:'', email:'', password:'', role:'staff', warehouse_id:'' }); setModal(true) }
-  const openEdit = (row) => { setEditing(row); setForm({ name: row.name, email: row.email, password:'', role: row.role, warehouse_id: row.warehouse_id || '' }); setModal(true) }
+  const openAdd  = () => { setEditing(null); setForm({ name:'', email:'', password:'', role:'staff', warehouse_id:'', is_active: true }); setModal(true) }
+  const openEdit = (row) => { setEditing(row); setForm({ name: row.name, email: row.email, password:'', role: row.role, warehouse_id: row.warehouse_id || '', is_active: row.is_active !== false }); setModal(true) }
 
   const save = async () => {
     if (!form.name || !form.email || (!editing && !form.password)) { toast.error('Lengkapi semua field wajib'); return }
@@ -95,6 +95,20 @@ export default function UsersPage() {
               </FormField>
             )}
           </div>
+          {editing && (
+            <FormField label="Status">
+              <div className="flex items-center gap-3 mt-1">
+                <button type="button"
+                  onClick={() => setForm({...form, is_active: !form.is_active})}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.is_active ? 'bg-emerald-500' : 'bg-slate-600'}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+                <span className={`text-sm font-medium ${form.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {form.is_active ? 'Aktif' : 'Nonaktif'}
+                </span>
+              </div>
+            </FormField>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setModal(false)} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-400 text-sm">Batal</button>
             <button onClick={save} className="px-5 py-2 rounded-xl bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm">Simpan</button>
