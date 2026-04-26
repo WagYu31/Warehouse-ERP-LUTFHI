@@ -100,8 +100,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 	if body.WarehouseID != "" {
-		h.DB.Exec(`INSERT INTO user_warehouses (id,user_id,warehouse_id) VALUES (?,?,?)`,
-			uuid.New().String(), id, body.WarehouseID)
+		h.DB.Exec(`INSERT INTO user_warehouses (user_id,warehouse_id,is_primary) VALUES (?,?,1)`,
+			id, body.WarehouseID)
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "User berhasil dibuat", "id": id})
 }
@@ -121,8 +121,8 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	// Update warehouse assignment: hapus lama, insert baru
 	h.DB.Exec(`DELETE FROM user_warehouses WHERE user_id=?`, id)
 	if body.WarehouseID != "" {
-		h.DB.Exec(`INSERT INTO user_warehouses (id,user_id,warehouse_id) VALUES (?,?,?)`,
-			uuid.New().String(), id, body.WarehouseID)
+		h.DB.Exec(`INSERT INTO user_warehouses (user_id,warehouse_id,is_primary) VALUES (?,?,1)`,
+			id, body.WarehouseID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User berhasil diperbarui"})
 }
