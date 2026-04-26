@@ -202,12 +202,13 @@ func (h *Handler) UpdatePOStatus(c *gin.Context) {
 
 func (h *Handler) GetStockTransfers(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT st.id, st.ref_number, st.status, st.transfer_date,
+		SELECT st.id, st.ref_number, st.status,
+		       COALESCE(DATE_FORMAT(st.transfer_date,'%Y-%m-%d'),''),
 		       COALESCE(wf.name,''), COALESCE(wt.name,''), COALESCE(u.name,'')
 		FROM stock_transfers st
 		LEFT JOIN warehouses wf ON st.from_warehouse_id = wf.id
 		LEFT JOIN warehouses wt ON st.to_warehouse_id = wt.id
-		LEFT JOIN users u ON st.requested_by = u.id
+		LEFT JOIN users u ON st.created_by = u.id
 		ORDER BY st.transfer_date DESC LIMIT 100`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
@@ -216,12 +217,13 @@ func (h *Handler) GetStockTransfers(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, ref, status, fromW, toW, reqBy string
-		var tDate time.Time
-		rows.Scan(&id, &ref, &status, &tDate, &fromW, &toW, &reqBy)
+		var id, ref, status, dateStr, fromW, toW, reqBy string
+		if err := rows.Scan(&id, &ref, &status, &dateStr, &fromW, &toW, &reqBy); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
 			"id": id, "ref_number": ref, "status": status,
-			"transfer_date": tDate.Format("2006-01-02"),
+			"transfer_date": dateStr,
 			"from_warehouse": fromW, "to_warehouse": toW, "requested_by": reqBy,
 		})
 	}
@@ -257,7 +259,7 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 	requestedBy := c.GetString("user_id")
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO stock_transfers (id,ref_number,from_warehouse_id,to_warehouse_id,requested_by,transfer_date,notes,status)
+	tx.Exec(`INSERT INTO stock_transfers (id,ref_number,from_warehouse_id,to_warehouse_id,created_by,transfer_date,notes,status)
 		VALUES (?,?,?,?,?,?,?,'completed')`,
 		id, refNum, b.FromWarehouseID, b.ToWarehouseID, requestedBy, time.Now(), b.Notes)
 
@@ -295,12 +297,15 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 
 func (h *Handler) GetOpnameList(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT so.id, so.ref_number, so.opname_date, so.status,
+		SELECT so.id, so.ref_number,
+		       COALESCE(DATE_FORMAT(so.opname_date,'%Y-%m-%d'),''),
+		       so.status,
 		       COALESCE(w.name,''), COALESCE(u.name,''),
-		       so.total_items, so.discrepancy_count
-		FROM stock_opnames so
+		       (SELECT COUNT(*) FROM opname_items oi WHERE oi.opname_id=so.id) as total_items,
+		       (SELECT COUNT(*) FROM opname_items oi WHERE oi.opname_id=so.id AND oi.discrepancy != 0) as disc_count
+		FROM stock_opname so
 		LEFT JOIN warehouses w ON so.warehouse_id = w.id
-		LEFT JOIN users u ON so.conducted_by = u.id
+		LEFT JOIN users u ON so.created_by = u.id
 		ORDER BY so.opname_date DESC LIMIT 100`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
@@ -309,12 +314,13 @@ func (h *Handler) GetOpnameList(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, ref, status, warehouseName, conductedBy string
-		var oDate time.Time
+		var id, ref, dateStr, status, warehouseName, conductedBy string
 		var totalItems, discrepancy int
-		rows.Scan(&id, &ref, &oDate, &status, &warehouseName, &conductedBy, &totalItems, &discrepancy)
+		if err := rows.Scan(&id, &ref, &dateStr, &status, &warehouseName, &conductedBy, &totalItems, &discrepancy); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": ref, "opname_date": oDate.Format("2006-01-02"),
+			"id": id, "ref_number": ref, "opname_date": dateStr,
 			"status": status, "warehouse_name": warehouseName,
 			"created_by_name": conductedBy,
 			"total_items": totalItems, "discrepancy_count": discrepancy,
@@ -346,9 +352,9 @@ func (h *Handler) CreateOpnameFull(c *gin.Context) {
 	h.DB.QueryRow(`SELECT COUNT(*) FROM item_stocks WHERE warehouse_id=? AND current_stock > 0`, b.WarehouseID).Scan(&totalItems)
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO stock_opnames (id,ref_number,warehouse_id,conducted_by,opname_date,notes,status,total_items,discrepancy_count)
-		VALUES (?,?,?,?,?,?,'in_progress',?,0)`,
-		id, refNum, b.WarehouseID, conductedBy, opDate, b.Notes, totalItems)
+	tx.Exec(`INSERT INTO stock_opname (id,ref_number,warehouse_id,created_by,opname_date,notes,status)
+		VALUES (?,?,?,?,?,?,'in_progress')`,
+		id, refNum, b.WarehouseID, conductedBy, opDate, b.Notes)
 
 	// Pre-populate opname items dengan stok sistem saat ini
 	rows, _ := h.DB.Query(`
@@ -374,11 +380,12 @@ func (h *Handler) CreateOpnameFull(c *gin.Context) {
 
 func (h *Handler) GetOpnameDetail(c *gin.Context) {
 	id := c.Param("id")
-	var ref, status, warehouseName string
-	var oDate time.Time
+	var ref, status, warehouseName, oDate string
 	err := h.DB.QueryRow(`
-		SELECT so.ref_number, so.status, so.opname_date, COALESCE(w.name,'')
-		FROM stock_opnames so LEFT JOIN warehouses w ON so.warehouse_id=w.id
+		SELECT so.ref_number, so.status,
+		       COALESCE(DATE_FORMAT(so.opname_date,'%Y-%m-%d'),''),
+		       COALESCE(w.name,'')
+		FROM stock_opname so LEFT JOIN warehouses w ON so.warehouse_id=w.id
 		WHERE so.id=?`, id).Scan(&ref, &status, &oDate, &warehouseName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Opname tidak ditemukan"})
@@ -403,7 +410,7 @@ func (h *Handler) GetOpnameDetail(c *gin.Context) {
 	if items == nil { items = []gin.H{} }
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"id": id, "ref_number": ref, "status": status,
-		"opname_date": oDate.Format("2006-01-02"), "warehouse": warehouseName,
+		"opname_date": oDate, "warehouse": warehouseName,
 		"items": items,
 	}})
 }
@@ -429,8 +436,8 @@ func (h *Handler) SubmitOpnameCount(c *gin.Context) {
 		tx.Exec(`UPDATE opname_items SET physical_count=?, discrepancy=? WHERE opname_id=? AND item_id=?`,
 			item.PhysicalCount, disc, opnameID, item.ItemID)
 	}
-	tx.Exec(`UPDATE stock_opnames SET status='completed', discrepancy_count=?, updated_at=? WHERE id=?`,
-		discrepancyCount, time.Now(), opnameID)
+	tx.Exec(`UPDATE stock_opname SET status='completed', updated_at=? WHERE id=?`,
+		time.Now(), opnameID)
 	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "Opname selesai", "discrepancy_count": discrepancyCount})
 }

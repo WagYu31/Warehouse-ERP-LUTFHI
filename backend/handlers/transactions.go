@@ -197,17 +197,19 @@ func (h *Handler) GetRequests(c *gin.Context) {
 	requesterID := c.GetString("user_id")
 	role := c.GetString("role")
 
-	q := `SELECT r.id, r.spb_number, r.needed_date, r.priority, r.status, r.purpose,
+	q := `SELECT r.id, r.ref_number,
+			COALESCE(DATE_FORMAT(r.required_date,'%Y-%m-%d'),''),
+			r.priority, r.status, COALESCE(r.purpose,''),
 			COALESCE(u.name,''), COALESCE(d.name,'')
 		  FROM requests r
-		  LEFT JOIN users u ON r.requester_id=u.id
+		  LEFT JOIN users u ON r.requested_by=u.id
 		  LEFT JOIN departments d ON r.department_id=d.id
 		  WHERE 1=1`
 	args := []interface{}{}
 
 	// Requester hanya lihat request sendiri
 	if role == "requester" {
-		q += ` AND r.requester_id=?`
+		q += ` AND r.requested_by=?`
 		args = append(args, requesterID)
 	}
 	if status != "" {
@@ -224,11 +226,12 @@ func (h *Handler) GetRequests(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, spbNum, priority, status, purpose, requester, dept string
-		var neededDate time.Time
-		rows.Scan(&id, &spbNum, &neededDate, &priority, &status, &purpose, &requester, &dept)
+		var id, spbNum, dateStr, priority, status, purpose, requester, dept string
+		if err := rows.Scan(&id, &spbNum, &dateStr, &priority, &status, &purpose, &requester, &dept); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "spb_number": spbNum, "needed_date": neededDate.Format("2006-01-02"),
+			"id": id, "spb_number": spbNum, "needed_date": dateStr,
 			"priority": priority, "status": status, "purpose": purpose,
 			"requester": requester, "department": dept,
 		})
