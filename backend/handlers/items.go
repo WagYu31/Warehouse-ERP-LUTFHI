@@ -89,26 +89,26 @@ func (h *Handler) GetItems(c *gin.Context) {
 	if warehouseID != "" {
 		rows, err = h.DB.Query(`
 			SELECT i.id, i.sku, i.name, i.min_stock, i.price, i.is_active,
-				   COALESCE(c.name,''), COALESCE(u.abbreviation,''),
+				   COALESCE(c.name,''), COALESCE(u.name,''), COALESCE(u.abbreviation,''),
 				   COALESCE(SUM(s.current_stock),0)
 			FROM items i
 			LEFT JOIN categories c ON i.category_id = c.id
 			LEFT JOIN units u ON i.unit_id = u.id
 			LEFT JOIN item_stocks s ON i.id = s.item_id AND s.warehouse_id = ?
 			WHERE i.is_active = true AND (i.name LIKE ? OR i.sku LIKE ?)
-			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.abbreviation
+			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.name, u.abbreviation
 			ORDER BY i.name`, warehouseID, search, search)
 	} else {
 		rows, err = h.DB.Query(`
 			SELECT i.id, i.sku, i.name, i.min_stock, i.price, i.is_active,
-				   COALESCE(c.name,''), COALESCE(u.abbreviation,''),
+				   COALESCE(c.name,''), COALESCE(u.name,''), COALESCE(u.abbreviation,''),
 				   COALESCE(SUM(s.current_stock),0)
 			FROM items i
 			LEFT JOIN categories c ON i.category_id = c.id
 			LEFT JOIN units u ON i.unit_id = u.id
 			LEFT JOIN item_stocks s ON i.id = s.item_id
 			WHERE i.is_active = true AND (i.name LIKE ? OR i.sku LIKE ?)
-			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.abbreviation
+			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.name, u.abbreviation
 			ORDER BY i.name`, search, search)
 	}
 
@@ -120,11 +120,11 @@ func (h *Handler) GetItems(c *gin.Context) {
 
 	var list []gin.H
 	for rows.Next() {
-		var id, sku, name, category, unit string
+		var id, sku, name, category, unitName, unitAbbr string
 		var minStock, totalStock int
 		var price float64
-		var isActive int  // MySQL tinyint(1) → int, bukan bool
-		if err := rows.Scan(&id, &sku, &name, &minStock, &price, &isActive, &category, &unit, &totalStock); err != nil {
+		var isActive int
+		if err := rows.Scan(&id, &sku, &name, &minStock, &price, &isActive, &category, &unitName, &unitAbbr, &totalStock); err != nil {
 			continue
 		}
 
@@ -137,7 +137,7 @@ func (h *Handler) GetItems(c *gin.Context) {
 
 		list = append(list, gin.H{
 			"id": id, "sku": sku, "name": name, "category_name": category,
-			"unit_name": unit, "unit_abbreviation": unit, "min_stock": minStock, "current_stock": totalStock,
+			"unit_name": unitName, "unit_abbreviation": unitAbbr, "min_stock": minStock, "current_stock": totalStock,
 			"price": price, "status": status, "is_active": isActive == 1,
 		})
 	}
