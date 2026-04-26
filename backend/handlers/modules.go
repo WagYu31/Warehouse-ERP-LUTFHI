@@ -150,28 +150,30 @@ func (h *Handler) DeleteLocation(c *gin.Context) {
 
 func (h *Handler) GetDeliveryOrders(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT do2.id, do2.do_number, do2.status, do2.delivery_date,
-		       COALESCE(do2.recipient_name,''), COALESCE(do2.recipient_address,''),
-		       COALESCE(u.name,''), COALESCE(ot.ref_number,'')
+		SELECT do2.id, do2.ref_number, do2.status,
+			   COALESCE(DATE_FORMAT(do2.delivery_date,'%Y-%m-%d'),''),
+			   COALESCE(do2.destination,''),
+			   COALESCE(w.name,''), COALESCE(u.name,'')
 		FROM delivery_orders do2
+		LEFT JOIN warehouses w ON do2.warehouse_id=w.id
 		LEFT JOIN users u ON do2.created_by=u.id
-		LEFT JOIN outbound_transactions ot ON do2.outbound_id=ot.id
 		ORDER BY do2.delivery_date DESC LIMIT 100`)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
+		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "error": err.Error()})
 		return
 	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, doNum, status, recipientName, recipientAddr, createdBy, outboundRef string
-		var deliveryDate time.Time
-		rows.Scan(&id, &doNum, &status, &deliveryDate, &recipientName, &recipientAddr, &createdBy, &outboundRef)
+		var id, doNum, status, dateStr, destination, warehouseName, createdBy string
+		if err := rows.Scan(&id, &doNum, &status, &dateStr, &destination, &warehouseName, &createdBy); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "do_number": doNum, "status": status,
-			"delivery_date": deliveryDate.Format("2006-01-02"),
-			"recipient_name": recipientName, "recipient_address": recipientAddr,
-			"created_by": createdBy, "outbound_ref": outboundRef,
+			"id": id, "ref_number": doNum, "do_number": doNum, "status": status,
+			"delivery_date": dateStr, "destination": destination,
+			"warehouse_name": warehouseName, "created_by_name": createdBy,
+			"recipient_name": destination,
 		})
 	}
 	if list == nil { list = []gin.H{} }
@@ -180,13 +182,10 @@ func (h *Handler) GetDeliveryOrders(c *gin.Context) {
 
 func (h *Handler) CreateDeliveryOrder(c *gin.Context) {
 	var b struct {
-		OutboundID       string `json:"outbound_id"`
-		RecipientName    string `json:"recipient_name" binding:"required"`
+		WarehouseID      string `json:"warehouse_id"`
+		RecipientName    string `json:"recipient_name"`
 		RecipientAddress string `json:"recipient_address"`
-		RecipientPhone   string `json:"recipient_phone"`
 		DeliveryDate     string `json:"delivery_date"`
-		Driver           string `json:"driver"`
-		Vehicle          string `json:"vehicle"`
 		Notes            string `json:"notes"`
 	}
 	if err := c.ShouldBindJSON(&b); err != nil {
@@ -203,84 +202,56 @@ func (h *Handler) CreateDeliveryOrder(c *gin.Context) {
 		deliveryDate, _ = time.Parse("2006-01-02", b.DeliveryDate)
 	}
 
+	// Map recipient_name+address to destination
+	destination := b.RecipientName
+	if b.RecipientAddress != "" {
+		destination = b.RecipientName + " - " + b.RecipientAddress
+	}
+
 	_, err := h.DB.Exec(`
-		INSERT INTO delivery_orders (id,do_number,outbound_id,recipient_name,recipient_address,
-		recipient_phone,delivery_date,driver,vehicle,notes,created_by,status)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')`,
-		id, doNum, nullStr(b.OutboundID), b.RecipientName, b.RecipientAddress,
-		b.RecipientPhone, deliveryDate, b.Driver, b.Vehicle, b.Notes, createdBy)
+		INSERT INTO delivery_orders (id,ref_number,warehouse_id,created_by,delivery_date,destination,notes,status)
+		VALUES (?,?,?,?,?,?,?,'pending')`,
+		id, doNum, nullStr(b.WarehouseID), createdBy, deliveryDate, destination, b.Notes)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal buat DO: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal buat Surat Jalan: " + err.Error()})
 		return
 	}
 
-	// Copy items dari outbound jika ada
-	if b.OutboundID != "" {
-		rows, _ := h.DB.Query(`SELECT item_id, qty FROM outbound_items WHERE outbound_id=?`, b.OutboundID)
-		defer rows.Close()
-		for rows.Next() {
-			var itemID string
-			var qty int
-			rows.Scan(&itemID, &qty)
-			h.DB.Exec(`INSERT INTO delivery_order_items (id,do_id,item_id,qty) VALUES (?,?,?,?)`,
-				uuid.New().String(), id, itemID, qty)
-		}
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Surat Jalan berhasil dibuat", "id": id, "do_number": doNum})
+	c.JSON(http.StatusCreated, gin.H{"message": "Surat Jalan berhasil dibuat", "id": id, "do_number": doNum, "ref_number": doNum})
 }
 
 func (h *Handler) GetDeliveryOrderDetail(c *gin.Context) {
 	id := c.Param("id")
-	var doNum, status, recipientName, recipientAddr, recipientPhone, driver, vehicle, notes, createdBy string
-	var deliveryDate time.Time
+	var doNum, status, destination, notes, createdBy string
+	var dateStr string
 
 	err := h.DB.QueryRow(`
-		SELECT do2.do_number, do2.status, COALESCE(do2.recipient_name,''),
-		       COALESCE(do2.recipient_address,''), COALESCE(do2.recipient_phone,''),
-		       COALESCE(do2.driver,''), COALESCE(do2.vehicle,''), COALESCE(do2.notes,''),
-		       do2.delivery_date, COALESCE(u.name,'')
+		SELECT do2.ref_number, do2.status,
+			   COALESCE(do2.destination,''),
+			   COALESCE(do2.notes,''),
+			   COALESCE(DATE_FORMAT(do2.delivery_date,'%Y-%m-%d'),''),
+			   COALESCE(u.name,'')
 		FROM delivery_orders do2 LEFT JOIN users u ON do2.created_by=u.id
 		WHERE do2.id=?`, id).
-		Scan(&doNum, &status, &recipientName, &recipientAddr, &recipientPhone,
-			&driver, &vehicle, &notes, &deliveryDate, &createdBy)
+		Scan(&doNum, &status, &destination, &notes, &dateStr, &createdBy)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Surat Jalan tidak ditemukan"})
 		return
 	}
 
-	rows, _ := h.DB.Query(`
-		SELECT doi.id, i.name, i.sku, doi.qty
-		FROM delivery_order_items doi JOIN items i ON doi.item_id=i.id
-		WHERE doi.do_id=?`, id)
-	defer rows.Close()
-	var items []gin.H
-	for rows.Next() {
-		var iid, name, sku string
-		var qty int
-		rows.Scan(&iid, &name, &sku, &qty)
-		items = append(items, gin.H{"id": iid, "name": name, "sku": sku, "qty": qty})
-	}
-	if items == nil { items = []gin.H{} }
-
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"id": id, "do_number": doNum, "status": status,
-		"recipient_name": recipientName, "recipient_address": recipientAddr,
-		"recipient_phone": recipientPhone, "driver": driver, "vehicle": vehicle,
-		"notes": notes, "delivery_date": deliveryDate.Format("2006-01-02"),
-		"created_by": createdBy, "items": items,
+		"id": id, "do_number": doNum, "ref_number": doNum, "status": status,
+		"recipient_name": destination, "destination": destination,
+		"recipient_address": "", "recipient_phone": "",
+		"driver": "", "vehicle": "",
+		"notes": notes, "delivery_date": dateStr,
+		"created_by": createdBy, "items": []gin.H{},
 	}})
 }
 
 func (h *Handler) ConfirmDelivery(c *gin.Context) {
 	id := c.Param("id")
-	var b struct {
-		ReceivedBy string `json:"received_by"`
-		Notes      string `json:"notes"`
-	}
-	c.ShouldBindJSON(&b)
-	h.DB.Exec(`UPDATE delivery_orders SET status='delivered', received_by=?, delivery_notes=?, delivered_at=? WHERE id=?`,
-		b.ReceivedBy, b.Notes, time.Now(), id)
+	h.DB.Exec(`UPDATE delivery_orders SET status='delivered', updated_at=NOW() WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Pengiriman dikonfirmasi selesai"})
 }
 
