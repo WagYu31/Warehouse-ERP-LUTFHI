@@ -194,22 +194,23 @@ func (h *Handler) GetRequests(c *gin.Context) {
 		  LEFT JOIN departments d ON r.department_id=d.id
 		  WHERE 1=1`
 	args := []interface{}{}
-	idx := 1
 
 	// Requester hanya lihat request sendiri
 	if role == "requester" {
-		q += fmt.Sprintf(` AND r.requester_id=$%d`, idx)
+		q += ` AND r.requester_id=?`
 		args = append(args, requesterID)
-		idx++
 	}
 	if status != "" {
-		q += fmt.Sprintf(` AND r.status=$%d`, idx)
+		q += ` AND r.status=?`
 		args = append(args, status)
-		idx++
 	}
 	q += ` ORDER BY r.created_at DESC LIMIT 100`
 
-	rows, _ := h.DB.Query(q, args...)
+	rows, err := h.DB.Query(q, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal memuat requests: " + err.Error()})
+		return
+	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {

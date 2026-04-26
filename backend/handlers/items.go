@@ -16,11 +16,15 @@ func (h *Handler) GetSuppliers(c *gin.Context) {
 	args := []interface{}{}
 	if search != "" {
 		q += ` AND (name LIKE ? OR email LIKE ?)`
-		args = append(args, "%"+search+"%")
+		args = append(args, "%"+search+"%", "%"+search+"%")
 	}
 	q += ` ORDER BY name`
 
-	rows, _ := h.DB.Query(q, args...)
+	rows, err := h.DB.Query(q, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
@@ -93,7 +97,7 @@ func (h *Handler) GetItems(c *gin.Context) {
 			LEFT JOIN item_stocks s ON i.id = s.item_id AND s.warehouse_id = ?
 			WHERE i.is_active = true AND (i.name LIKE ? OR i.sku LIKE ?)
 			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.abbreviation
-			ORDER BY i.name`, warehouseID, search)
+			ORDER BY i.name`, warehouseID, search, search)
 	} else {
 		rows, err = h.DB.Query(`
 			SELECT i.id, i.sku, i.name, i.min_stock, i.price, i.is_active,
@@ -105,7 +109,7 @@ func (h *Handler) GetItems(c *gin.Context) {
 			LEFT JOIN item_stocks s ON i.id = s.item_id
 			WHERE i.is_active = true AND (i.name LIKE ? OR i.sku LIKE ?)
 			GROUP BY i.id, i.sku, i.name, i.min_stock, i.price, i.is_active, c.name, u.abbreviation
-			ORDER BY i.name`, search)
+			ORDER BY i.name`, search, search)
 	}
 
 	if err != nil {
