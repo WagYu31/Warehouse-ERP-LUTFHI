@@ -47,21 +47,28 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 // ── GET /api/users ────────────────────────────────────────────
 func (h *Handler) GetUsers(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT id, name, email, role, is_active, created_at
-		FROM users ORDER BY created_at DESC`)
+		SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at,
+		       COALESCE(uw.warehouse_id,''), COALESCE(w.name,'')
+		FROM users u
+		LEFT JOIN user_warehouses uw ON uw.user_id=u.id
+		LEFT JOIN warehouses w ON w.id=uw.warehouse_id
+		ORDER BY u.created_at DESC`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
 	defer rows.Close()
-
 	var users []gin.H
 	for rows.Next() {
-		var id, name, email, role string
+		var id, name, email, role, warehouseID, warehouseName string
 		var isActive bool
 		var createdAt time.Time
-		rows.Scan(&id, &name, &email, &role, &isActive, &createdAt)
-		users = append(users, gin.H{"id": id, "name": name, "email": email, "role": role, "is_active": isActive, "created_at": createdAt})
+		rows.Scan(&id, &name, &email, &role, &isActive, &createdAt, &warehouseID, &warehouseName)
+		users = append(users, gin.H{
+			"id": id, "name": name, "email": email,
+			"role": role, "is_active": isActive, "created_at": createdAt,
+			"warehouse_id": warehouseID, "warehouse_name": warehouseName,
+		})
 	}
 	if users == nil {
 		users = []gin.H{}
@@ -72,16 +79,16 @@ func (h *Handler) GetUsers(c *gin.Context) {
 // ── POST /api/users ───────────────────────────────────────────
 func (h *Handler) CreateUser(c *gin.Context) {
 	var body struct {
-		Name     string `json:"name" binding:"required"`
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
-		Role     string `json:"role" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		Email       string `json:"email" binding:"required,email"`
+		Password    string `json:"password" binding:"required,min=6"`
+		Role        string `json:"role" binding:"required"`
+		WarehouseID string `json:"warehouse_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-
 	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	id := uuid.New().String()
 	_, err := h.DB.Exec(
@@ -92,6 +99,10 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Email sudah terdaftar"})
 		return
 	}
+	if body.WarehouseID != "" {
+		h.DB.Exec(`INSERT INTO user_warehouses (id,user_id,warehouse_id) VALUES (?,?,?)`,
+			uuid.New().String(), id, body.WarehouseID)
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "User berhasil dibuat", "id": id})
 }
 
@@ -99,13 +110,20 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	var body struct {
-		Name     string `json:"name"`
-		Role     string `json:"role"`
-		IsActive *bool  `json:"is_active"`
+		Name        string `json:"name"`
+		Role        string `json:"role"`
+		IsActive    *bool  `json:"is_active"`
+		WarehouseID string `json:"warehouse_id"`
 	}
 	c.ShouldBindJSON(&body)
 	h.DB.Exec(`UPDATE users SET name=?, role=?, is_active=?, updated_at=? WHERE id=?`,
 		body.Name, body.Role, body.IsActive, time.Now(), id)
+	// Update warehouse assignment: hapus lama, insert baru
+	h.DB.Exec(`DELETE FROM user_warehouses WHERE user_id=?`, id)
+	if body.WarehouseID != "" {
+		h.DB.Exec(`INSERT INTO user_warehouses (id,user_id,warehouse_id) VALUES (?,?,?)`,
+			uuid.New().String(), id, body.WarehouseID)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "User berhasil diperbarui"})
 }
 
@@ -128,12 +146,18 @@ func (h *Handler) GetWarehouses(c *gin.Context) {
 		rows.Scan(&id, &code, &name, &city, &isActive)
 		list = append(list, gin.H{"id": id, "code": code, "name": name, "city": city.String, "is_active": isActive})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) CreateWarehouse(c *gin.Context) {
-	var b struct { Code string `json:"code"`; Name string `json:"name"`; City string `json:"city"` }
+	var b struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+		City string `json:"city"`
+	}
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
 	h.DB.Exec(`INSERT INTO warehouses (id,code,name,city) VALUES (?,?,?,?)`, id, b.Code, b.Name, b.City)
@@ -142,7 +166,10 @@ func (h *Handler) CreateWarehouse(c *gin.Context) {
 
 func (h *Handler) UpdateWarehouse(c *gin.Context) {
 	id := c.Param("id")
-	var b struct { Name string `json:"name"`; City string `json:"city"` }
+	var b struct {
+		Name string `json:"name"`
+		City string `json:"city"`
+	}
 	c.ShouldBindJSON(&b)
 	h.DB.Exec(`UPDATE warehouses SET name=?,city=?,updated_at=? WHERE id=?`, b.Name, b.City, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "Gudang diperbarui"})
@@ -163,12 +190,14 @@ func (h *Handler) GetCategories(c *gin.Context) {
 		rows.Scan(&id, &name)
 		list = append(list, gin.H{"id": id, "name": name})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) CreateCategory(c *gin.Context) {
-	var b struct { Name string `json:"name"` }
+	var b struct{ Name string `json:"name"` }
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
 	h.DB.Exec(`INSERT INTO categories (id,name) VALUES (?,?)`, id, b.Name)
@@ -185,12 +214,17 @@ func (h *Handler) GetUnits(c *gin.Context) {
 		rows.Scan(&id, &name, &abbr)
 		list = append(list, gin.H{"id": id, "name": name, "abbreviation": abbr})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) CreateUnit(c *gin.Context) {
-	var b struct { Name string `json:"name"`; Abbreviation string `json:"abbreviation"` }
+	var b struct {
+		Name         string `json:"name"`
+		Abbreviation string `json:"abbreviation"`
+	}
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
 	h.DB.Exec(`INSERT INTO units (id,name,abbreviation) VALUES (?,?,?)`, id, b.Name, b.Abbreviation)

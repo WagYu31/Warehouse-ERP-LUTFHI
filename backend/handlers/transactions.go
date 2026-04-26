@@ -11,6 +11,7 @@ import (
 
 // ── Inbound (Barang Masuk) ────────────────────────────────────
 func (h *Handler) GetInbound(c *gin.Context) {
+	wClause, wArgs := warehouseFilter(c, "t")
 	rows, err := h.DB.Query(`
 		SELECT t.id, t.ref_number,
 			   COALESCE(DATE_FORMAT(t.received_date,'%Y-%m-%d'),''),
@@ -20,7 +21,8 @@ func (h *Handler) GetInbound(c *gin.Context) {
 		LEFT JOIN suppliers s ON t.supplier_id = s.id
 		LEFT JOIN warehouses w ON t.warehouse_id = w.id
 		LEFT JOIN users u ON t.received_by = u.id
-		ORDER BY t.received_date DESC LIMIT 100`)
+		WHERE 1=1`+wClause+`
+		ORDER BY t.received_date DESC LIMIT 100`, wArgs...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
@@ -131,6 +133,7 @@ func (h *Handler) ConfirmInbound(c *gin.Context) {
 
 // ── Outbound (Barang Keluar) ──────────────────────────────────
 func (h *Handler) GetOutbound(c *gin.Context) {
+	wClause, wArgs := warehouseFilter(c, "t")
 	rows, err := h.DB.Query(`
 		SELECT t.id, t.ref_number,
 			   COALESCE(DATE_FORMAT(t.outbound_date,'%Y-%m-%d'),''),
@@ -140,7 +143,8 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 		FROM outbound_transactions t
 		LEFT JOIN warehouses w ON t.warehouse_id=w.id
 		LEFT JOIN users u ON t.issued_by=u.id
-		ORDER BY t.outbound_date DESC LIMIT 100`)
+		WHERE 1=1`+wClause+`
+		ORDER BY t.outbound_date DESC LIMIT 100`, wArgs...)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "message": err.Error()})
 		return

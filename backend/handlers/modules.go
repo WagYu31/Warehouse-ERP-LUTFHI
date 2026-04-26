@@ -149,6 +149,7 @@ func (h *Handler) DeleteLocation(c *gin.Context) {
 // ══════════════════════════════════════════════════════════════
 
 func (h *Handler) GetDeliveryOrders(c *gin.Context) {
+	wClause, wArgs := warehouseFilter(c, "do2")
 	rows, err := h.DB.Query(`
 		SELECT do2.id, do2.ref_number, do2.status,
 			   COALESCE(DATE_FORMAT(do2.delivery_date,'%Y-%m-%d'),''),
@@ -157,7 +158,8 @@ func (h *Handler) GetDeliveryOrders(c *gin.Context) {
 		FROM delivery_orders do2
 		LEFT JOIN warehouses w ON do2.warehouse_id=w.id
 		LEFT JOIN users u ON do2.created_by=u.id
-		ORDER BY do2.delivery_date DESC LIMIT 100`)
+		WHERE 1=1`+wClause+`
+		ORDER BY do2.delivery_date DESC LIMIT 100`, wArgs...)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "error": err.Error()})
 		return
@@ -260,6 +262,7 @@ func (h *Handler) ConfirmDelivery(c *gin.Context) {
 // ══════════════════════════════════════════════════════════════
 
 func (h *Handler) GetReturns(c *gin.Context) {
+	wClause, wArgs := warehouseFilter(c, "r")
 	rows, err := h.DB.Query(`
 		SELECT r.id, r.ref_number, r.type, r.status,
 		       COALESCE(DATE_FORMAT(r.return_date,'%Y-%m-%d'),''),
@@ -269,7 +272,8 @@ func (h *Handler) GetReturns(c *gin.Context) {
 		LEFT JOIN users u ON r.created_by=u.id
 		LEFT JOIN suppliers s ON r.supplier_id=s.id
 		LEFT JOIN warehouses w ON r.warehouse_id=w.id
-		ORDER BY r.return_date DESC LIMIT 100`)
+		WHERE 1=1`+wClause+`
+		ORDER BY r.return_date DESC LIMIT 100`, wArgs...)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
 		return

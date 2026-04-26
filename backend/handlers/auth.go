@@ -67,8 +67,17 @@ func (h *Handler) Login(c *gin.Context) {
 	// Update last login
 	h.DB.Exec("UPDATE users SET last_login_at = ? WHERE id = ?", time.Now(), userID)
 
+	// Ambil warehouse_id dari user_warehouses (ambil pertama jika ada)
+	var warehouseID, warehouseName string
+	h.DB.QueryRow(`
+		SELECT uw.warehouse_id, COALESCE(w.name,'') 
+		FROM user_warehouses uw 
+		LEFT JOIN warehouses w ON uw.warehouse_id=w.id 
+		WHERE uw.user_id=? LIMIT 1`, userID).
+		Scan(&warehouseID, &warehouseName)
+
 	// Generate JWT
-	token, refreshToken, err := generateTokens(userID, email, role, name)
+	token, refreshToken, err := generateTokens(userID, email, role, name, warehouseID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal membuat token"})
 		return
@@ -79,10 +88,12 @@ func (h *Handler) Login(c *gin.Context) {
 		"token":         token,
 		"refresh_token": refreshToken,
 		"user": gin.H{
-			"id":    userID,
-			"name":  name,
-			"email": email,
-			"role":  role,
+			"id":             userID,
+			"name":           name,
+			"email":          email,
+			"role":           role,
+			"warehouse_id":   warehouseID,
+			"warehouse_name": warehouseName,
 		},
 	})
 }
@@ -107,7 +118,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	newToken, newRefresh, err := generateTokens(claims.UserID, claims.Email, claims.Role, claims.Name)
+	newToken, newRefresh, err := generateTokens(claims.UserID, claims.Email, claims.Role, claims.Name, claims.WarehouseID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal refresh token"})
 		return
@@ -119,16 +130,17 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	})
 }
 
-func generateTokens(userID, email, role, name string) (string, string, error) {
+func generateTokens(userID, email, role, name, warehouseID string) (string, string, error) {
 	secret := getJWTSecret()
 	expireHours := 8
 
 	// Access token (8 jam)
 	claims := &middleware.Claims{
-		UserID: userID,
-		Email:  email,
-		Role:   role,
-		Name:   name,
+		UserID:      userID,
+		Email:       email,
+		Role:        role,
+		Name:        name,
+		WarehouseID: warehouseID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -143,10 +155,11 @@ func generateTokens(userID, email, role, name string) (string, string, error) {
 
 	// Refresh token (7 hari)
 	refreshClaims := &middleware.Claims{
-		UserID: userID,
-		Email:  email,
-		Role:   role,
-		Name:   name,
+		UserID:      userID,
+		Email:       email,
+		Role:        role,
+		Name:        name,
+		WarehouseID: warehouseID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
