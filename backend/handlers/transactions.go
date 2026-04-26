@@ -278,11 +278,12 @@ func (h *Handler) GetRequestDetail(c *gin.Context) {
 
 func (h *Handler) CreateRequest(c *gin.Context) {
 	var b struct {
-		NeededDate  string `json:"needed_date" binding:"required"`
-		Purpose     string `json:"purpose" binding:"required"`
-		Priority    string `json:"priority"`
-		WarehouseID string `json:"warehouse_id"`
-		Items       []struct {
+		RequiredDate string `json:"required_date" binding:"required"`
+		Purpose      string `json:"purpose" binding:"required"`
+		Priority     string `json:"priority"`
+		DepartmentID string `json:"department_id"`
+		Notes        string `json:"notes"`
+		Items        []struct {
 			ItemID string `json:"item_id"`
 			Qty    int    `json:"qty"`
 		} `json:"items"`
@@ -296,14 +297,14 @@ func (h *Handler) CreateRequest(c *gin.Context) {
 	id := uuid.New().String()
 	requesterID := c.GetString("user_id")
 
-	date, _ := time.Parse("2006-01-02", b.NeededDate)
+	date, _ := time.Parse("2006-01-02", b.RequiredDate)
 	priority := b.Priority
 	if priority == "" { priority = "normal" }
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO requests (id,ref_number,requested_by,required_date,purpose,priority,status)
-		VALUES (?,?,?,?,?,?,'pending')`,
-		id, spbNum, requesterID, date, b.Purpose, priority)
+	tx.Exec(`INSERT INTO requests (id,ref_number,requested_by,required_date,purpose,priority,notes,status)
+		VALUES (?,?,?,?,?,?,?,'pending')`,
+		id, spbNum, requesterID, date, b.Purpose, priority, b.Notes)
 
 	for _, item := range b.Items {
 		tx.Exec(`INSERT INTO request_items (id,request_id,item_id,qty_requested) VALUES (?,?,?,?)`,
