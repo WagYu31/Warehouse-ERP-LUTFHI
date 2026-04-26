@@ -200,14 +200,14 @@ func (h *Handler) GetRequests(c *gin.Context) {
 	q := `SELECT r.id, r.ref_number,
 			COALESCE(DATE_FORMAT(r.required_date,'%Y-%m-%d'),''),
 			r.priority, r.status, COALESCE(r.purpose,''),
-			COALESCE(u.name,''), COALESCE(d.name,'')
+			COALESCE(u.name,''), COALESCE(d.name,''),
+			(SELECT COUNT(*) FROM request_items ri WHERE ri.request_id=r.id) as item_count
 		  FROM requests r
 		  LEFT JOIN users u ON r.requested_by=u.id
 		  LEFT JOIN departments d ON r.department_id=d.id
 		  WHERE 1=1`
 	args := []interface{}{}
 
-	// Requester hanya lihat request sendiri
 	if role == "requester" {
 		q += ` AND r.requested_by=?`
 		args = append(args, requesterID)
@@ -226,14 +226,15 @@ func (h *Handler) GetRequests(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, spbNum, dateStr, priority, status, purpose, requester, dept string
-		if err := rows.Scan(&id, &spbNum, &dateStr, &priority, &status, &purpose, &requester, &dept); err != nil {
+		var id, refNum, dateStr, priority, status, purpose, requester, dept string
+		var itemCount int
+		if err := rows.Scan(&id, &refNum, &dateStr, &priority, &status, &purpose, &requester, &dept, &itemCount); err != nil {
 			continue
 		}
 		list = append(list, gin.H{
-			"id": id, "spb_number": spbNum, "needed_date": dateStr,
+			"id": id, "ref_number": refNum, "required_date": dateStr,
 			"priority": priority, "status": status, "purpose": purpose,
-			"requester": requester, "department": dept,
+			"requested_by_name": requester, "department_name": dept, "item_count": itemCount,
 		})
 	}
 	if list == nil { list = []gin.H{} }
@@ -242,15 +243,21 @@ func (h *Handler) GetRequests(c *gin.Context) {
 
 func (h *Handler) GetRequestDetail(c *gin.Context) {
 	id := c.Param("id")
-	var spbNum, priority, status, purpose string
-	var neededDate time.Time
-	err := h.DB.QueryRow(`SELECT spb_number,needed_date,priority,status,purpose FROM requests WHERE id=?`, id).
-		Scan(&spbNum, &neededDate, &priority, &status, &purpose)
+	var refNum, priority, status, purpose, requesterName, deptName, dateStr string
+	err := h.DB.QueryRow(`
+		SELECT r.ref_number, COALESCE(DATE_FORMAT(r.required_date,'%Y-%m-%d'),''),
+			r.priority, r.status, COALESCE(r.purpose,''),
+			COALESCE(u.name,''), COALESCE(d.name,'')
+		FROM requests r
+		LEFT JOIN users u ON r.requested_by=u.id
+		LEFT JOIN departments d ON r.department_id=d.id
+		WHERE r.id=?`, id).
+		Scan(&refNum, &dateStr, &priority, &status, &purpose, &requesterName, &deptName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "SPB tidak ditemukan"})
 		return
 	}
-	rows, _ := h.DB.Query(`SELECT ri.id, i.sku, i.name, ri.qty_requested, ri.qty_approved
+	rows, _ := h.DB.Query(`SELECT ri.id, i.sku, i.name, ri.qty_requested, COALESCE(ri.qty_approved,0)
 		FROM request_items ri JOIN items i ON ri.item_id=i.id WHERE ri.request_id=?`, id)
 	defer rows.Close()
 	var items []gin.H
@@ -262,8 +269,10 @@ func (h *Handler) GetRequestDetail(c *gin.Context) {
 	}
 	if items == nil { items = []gin.H{} }
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"id": id, "spb_number": spbNum, "needed_date": neededDate.Format("2006-01-02"),
-		"priority": priority, "status": status, "purpose": purpose, "items": items,
+		"id": id, "ref_number": refNum, "required_date": dateStr,
+		"priority": priority, "status": status, "purpose": purpose,
+		"requested_by_name": requesterName, "department_name": deptName,
+		"item_count": len(items), "items": items,
 	}})
 }
 
@@ -292,16 +301,16 @@ func (h *Handler) CreateRequest(c *gin.Context) {
 	if priority == "" { priority = "normal" }
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO requests (id,spb_number,requester_id,warehouse_id,needed_date,purpose,priority,status)
-		VALUES (?,?,?,?,?,?,?,'pending')`,
-		id, spbNum, requesterID, nullStr(b.WarehouseID), date, b.Purpose, priority)
+	tx.Exec(`INSERT INTO requests (id,ref_number,requested_by,required_date,purpose,priority,status)
+		VALUES (?,?,?,?,?,?,'pending')`,
+		id, spbNum, requesterID, date, b.Purpose, priority)
 
 	for _, item := range b.Items {
 		tx.Exec(`INSERT INTO request_items (id,request_id,item_id,qty_requested) VALUES (?,?,?,?)`,
 			uuid.New().String(), id, item.ItemID, item.Qty)
 	}
 	tx.Commit()
-	c.JSON(http.StatusCreated, gin.H{"message": "SPB berhasil dibuat", "spb_number": spbNum, "id": id})
+	c.JSON(http.StatusCreated, gin.H{"message": "SPB berhasil dibuat", "ref_number": spbNum, "id": id})
 }
 
 func (h *Handler) ApproveRequest(c *gin.Context) {
