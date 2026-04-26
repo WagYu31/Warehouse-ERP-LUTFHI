@@ -290,7 +290,8 @@ func (h *Handler) ConfirmDelivery(c *gin.Context) {
 
 func (h *Handler) GetReturns(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT r.id, r.return_number, r.return_type, r.status, r.return_date,
+		SELECT r.id, r.ref_number, r.type, r.status,
+		       COALESCE(DATE_FORMAT(r.return_date,'%Y-%m-%d'),''),
 		       COALESCE(r.reason,''), COALESCE(u.name,''), COALESCE(s.name,'')
 		FROM returns r
 		LEFT JOIN users u ON r.created_by=u.id
@@ -303,12 +304,13 @@ func (h *Handler) GetReturns(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, retNum, retType, status, reason, createdBy, supplierName string
-		var retDate time.Time
-		rows.Scan(&id, &retNum, &retType, &status, &retDate, &reason, &createdBy, &supplierName)
+		var id, refNum, retType, status, dateStr, reason, createdBy, supplierName string
+		if err := rows.Scan(&id, &refNum, &retType, &status, &dateStr, &reason, &createdBy, &supplierName); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "return_number": retNum, "return_type": retType,
-			"status": status, "return_date": retDate.Format("2006-01-02"),
+			"id": id, "ref_number": refNum, "return_number": refNum, "return_type": retType,
+			"status": status, "return_date": dateStr,
 			"reason": reason, "created_by": createdBy, "supplier": supplierName,
 		})
 	}
@@ -346,7 +348,7 @@ func (h *Handler) CreateReturn(c *gin.Context) {
 	if b.ReturnDate != "" { retDate, _ = time.Parse("2006-01-02", b.ReturnDate) }
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO returns (id,return_number,return_type,supplier_id,reason,notes,return_date,created_by,status)
+	tx.Exec(`INSERT INTO returns (id,ref_number,type,supplier_id,reason,notes,return_date,created_by,status)
 		VALUES (?,?,?,?,?,?,?,?,'pending')`,
 		id, retNum, b.ReturnType, nullStr(b.SupplierID), b.Reason, b.Notes, retDate, createdBy)
 
@@ -361,12 +363,12 @@ func (h *Handler) CreateReturn(c *gin.Context) {
 
 func (h *Handler) GetReturnDetail(c *gin.Context) {
 	id := c.Param("id")
-	var retNum, retType, status, reason, notes, createdBy, supplierName string
-	var retDate time.Time
-
+	var retNum, retType, status, reason, notes, retDate, createdBy, supplierName string
 	err := h.DB.QueryRow(`
-		SELECT r.return_number, r.return_type, r.status, COALESCE(r.reason,''),
-		       COALESCE(r.notes,''), r.return_date, COALESCE(u.name,''), COALESCE(s.name,'')
+		SELECT r.ref_number, r.type, r.status, COALESCE(r.reason,''),
+		       COALESCE(r.notes,''),
+		       COALESCE(DATE_FORMAT(r.return_date,'%Y-%m-%d'),''),
+		       COALESCE(u.name,''), COALESCE(s.name,'')
 		FROM returns r LEFT JOIN users u ON r.created_by=u.id LEFT JOIN suppliers s ON r.supplier_id=s.id
 		WHERE r.id=?`, id).
 		Scan(&retNum, &retType, &status, &reason, &notes, &retDate, &createdBy, &supplierName)
@@ -391,7 +393,7 @@ func (h *Handler) GetReturnDetail(c *gin.Context) {
 	if items == nil { items = []gin.H{} }
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"id": id, "return_number": retNum, "return_type": retType, "status": status,
-		"reason": reason, "notes": notes, "return_date": retDate.Format("2006-01-02"),
+		"reason": reason, "notes": notes, "return_date": retDate,
 		"created_by": createdBy, "supplier": supplierName, "items": items,
 	}})
 }
