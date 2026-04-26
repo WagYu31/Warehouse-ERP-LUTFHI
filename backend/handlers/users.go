@@ -92,7 +92,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	id := uuid.New().String()
 	_, err := h.DB.Exec(
-		`INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
+		`INSERT INTO users (id, name, email, password_hash, role, is_active) VALUES (?,?,?,?,?,1)`,
 		id, body.Name, body.Email, string(hash), body.Role,
 	)
 	if err != nil {
