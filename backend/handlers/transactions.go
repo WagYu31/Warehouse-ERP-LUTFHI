@@ -134,8 +134,12 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 	rows, err := h.DB.Query(`
 		SELECT t.id, t.ref_number,
 			   COALESCE(DATE_FORMAT(t.outbound_date,'%Y-%m-%d'),''),
-			   t.status, COALESCE(u.name,'')
-		FROM outbound_transactions t LEFT JOIN users u ON t.issued_by=u.id
+			   t.status,
+			   COALESCE(w.name,''), COALESCE(u.name,''),
+			   (SELECT COUNT(*) FROM outbound_items oi WHERE oi.transaction_id=t.id) as item_count
+		FROM outbound_transactions t
+		LEFT JOIN warehouses w ON t.warehouse_id=w.id
+		LEFT JOIN users u ON t.issued_by=u.id
 		ORDER BY t.outbound_date DESC LIMIT 100`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "message": err.Error()})
@@ -144,13 +148,15 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, ref, dateStr, status, processedBy string
-		if err := rows.Scan(&id, &ref, &dateStr, &status, &processedBy); err != nil {
+		var id, ref, dateStr, status, warehouseName, issuedBy string
+		var itemCount int
+		if err := rows.Scan(&id, &ref, &dateStr, &status, &warehouseName, &issuedBy, &itemCount); err != nil {
 			continue
 		}
 		list = append(list, gin.H{
 			"id": id, "ref_number": ref, "outbound_date": dateStr,
-			"status": status, "processed_by": processedBy,
+			"status": status, "warehouse_name": warehouseName,
+			"issued_by_name": issuedBy, "item_count": itemCount,
 		})
 	}
 	if list == nil { list = []gin.H{} }
@@ -159,9 +165,11 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 
 func (h *Handler) CreateOutbound(c *gin.Context) {
 	var b struct {
-		WarehouseID string `json:"warehouse_id" binding:"required"`
-		Notes       string `json:"notes"`
-		Items       []struct {
+		WarehouseID  string `json:"warehouse_id" binding:"required"`
+		OutboundDate string `json:"outbound_date"`
+		Destination  string `json:"destination"`
+		Notes        string `json:"notes"`
+		Items        []struct {
 			ItemID string `json:"item_id"`
 			Qty    int    `json:"qty"`
 		} `json:"items"`
@@ -175,10 +183,15 @@ func (h *Handler) CreateOutbound(c *gin.Context) {
 	id := uuid.New().String()
 	processedBy := c.GetString("user_id")
 
+	outDate := time.Now()
+	if b.OutboundDate != "" {
+		outDate, _ = time.Parse("2006-01-02", b.OutboundDate)
+	}
+
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO outbound_transactions (id,ref_number,warehouse_id,issued_by,outbound_date,notes,status)
-		VALUES (?,?,?,?,?,?,'confirmed')`,
-		id, refNum, b.WarehouseID, processedBy, time.Now(), b.Notes)
+	tx.Exec(`INSERT INTO outbound_transactions (id,ref_number,warehouse_id,issued_by,outbound_date,destination,notes,status)
+		VALUES (?,?,?,?,?,?,?,'confirmed')`,
+		id, refNum, b.WarehouseID, processedBy, outDate, b.Destination, b.Notes)
 
 	for _, item := range b.Items {
 		tx.Exec(`INSERT INTO outbound_items (id,transaction_id,item_id,qty) VALUES (?,?,?,?)`,
