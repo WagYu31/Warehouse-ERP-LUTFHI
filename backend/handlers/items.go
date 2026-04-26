@@ -123,8 +123,10 @@ func (h *Handler) GetItems(c *gin.Context) {
 		var id, sku, name, category, unit string
 		var minStock, totalStock int
 		var price float64
-		var isActive bool
-		rows.Scan(&id, &sku, &name, &minStock, &price, &isActive, &category, &unit, &totalStock)
+		var isActive int  // MySQL tinyint(1) → int, bukan bool
+		if err := rows.Scan(&id, &sku, &name, &minStock, &price, &isActive, &category, &unit, &totalStock); err != nil {
+			continue
+		}
 
 		status := "normal"
 		if totalStock <= 0 {
@@ -136,7 +138,7 @@ func (h *Handler) GetItems(c *gin.Context) {
 		list = append(list, gin.H{
 			"id": id, "sku": sku, "name": name, "category": category,
 			"unit": unit, "min_stock": minStock, "current_stock": totalStock,
-			"price": price, "status": status, "is_active": isActive,
+			"price": price, "status": status, "is_active": isActive == 1,
 		})
 	}
 	if list == nil {
