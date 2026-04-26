@@ -135,7 +135,7 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 		SELECT t.id, t.ref_number,
 			   COALESCE(DATE_FORMAT(t.outbound_date,'%Y-%m-%d'),''),
 			   t.status, COALESCE(u.name,'')
-		FROM outbound_transactions t LEFT JOIN users u ON t.created_by=u.id
+		FROM outbound_transactions t LEFT JOIN users u ON t.issued_by=u.id
 		ORDER BY t.outbound_date DESC LIMIT 100`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "message": err.Error()})
@@ -176,7 +176,7 @@ func (h *Handler) CreateOutbound(c *gin.Context) {
 	processedBy := c.GetString("user_id")
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`INSERT INTO outbound_transactions (id,ref_number,warehouse_id,created_by,outbound_date,notes,status)
+	tx.Exec(`INSERT INTO outbound_transactions (id,ref_number,warehouse_id,issued_by,outbound_date,notes,status)
 		VALUES (?,?,?,?,?,?,'confirmed')`,
 		id, refNum, b.WarehouseID, processedBy, time.Now(), b.Notes)
 
