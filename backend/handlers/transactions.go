@@ -12,7 +12,9 @@ import (
 // ── Inbound (Barang Masuk) ────────────────────────────────────
 func (h *Handler) GetInbound(c *gin.Context) {
 	rows, err := h.DB.Query(`
-		SELECT t.id, t.ref_number, t.received_date, t.status,
+		SELECT t.id, t.ref_number,
+			   COALESCE(DATE_FORMAT(t.received_date,'%Y-%m-%d'),''),
+			   t.status,
 			   COALESCE(s.name,''), COALESCE(w.name,''), COALESCE(u.name,'')
 		FROM inbound_transactions t
 		LEFT JOIN suppliers s ON t.supplier_id = s.id
@@ -26,11 +28,12 @@ func (h *Handler) GetInbound(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, refNum, status, supplier, warehouse, receivedBy string
-		var date time.Time
-		rows.Scan(&id, &refNum, &date, &status, &supplier, &warehouse, &receivedBy)
+		var id, refNum, dateStr, status, supplier, warehouse, receivedBy string
+		if err := rows.Scan(&id, &refNum, &dateStr, &status, &supplier, &warehouse, &receivedBy); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": refNum, "date": date.Format("2006-01-02"),
+			"id": id, "ref_number": refNum, "date": dateStr,
 			"status": status, "supplier": supplier, "warehouse": warehouse, "received_by": receivedBy,
 		})
 	}
@@ -128,18 +131,25 @@ func (h *Handler) ConfirmInbound(c *gin.Context) {
 
 // ── Outbound (Barang Keluar) ──────────────────────────────────
 func (h *Handler) GetOutbound(c *gin.Context) {
-	rows, _ := h.DB.Query(`
-		SELECT t.id, t.ref_number, t.outbound_date, t.status, COALESCE(u.name,'')
+	rows, err := h.DB.Query(`
+		SELECT t.id, t.ref_number,
+			   COALESCE(DATE_FORMAT(t.outbound_date,'%Y-%m-%d'),''),
+			   t.status, COALESCE(u.name,'')
 		FROM outbound_transactions t LEFT JOIN users u ON t.processed_by=u.id
 		ORDER BY t.outbound_date DESC LIMIT 100`)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}, "message": err.Error()})
+		return
+	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, ref, status, processedBy string
-		var date time.Time
-		rows.Scan(&id, &ref, &date, &status, &processedBy)
+		var id, ref, dateStr, status, processedBy string
+		if err := rows.Scan(&id, &ref, &dateStr, &status, &processedBy); err != nil {
+			continue
+		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": ref, "date": date.Format("2006-01-02"),
+			"id": id, "ref_number": ref, "date": dateStr,
 			"status": status, "processed_by": processedBy,
 		})
 	}
