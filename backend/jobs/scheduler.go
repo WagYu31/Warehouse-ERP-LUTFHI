@@ -75,7 +75,7 @@ func checkLowStock(db *sql.DB) {
 		// Insert notifikasi ke DB
 		db.Exec(`
 			INSERT INTO notifications (id, title, message, type, is_read, created_at)
-			VALUES (gen_random_uuid(), $1, $2, 'warning', false, NOW())
+			VALUES (UUID(), ?, ?, 'warning', false, NOW())
 			ON CONFLICT DO NOTHING`,
 			"Stok Kritis: "+name,
 			fmt.Sprintf("%s (SKU: %s) hanya %d unit di gudang %s, min: %d", name, sku, stock, warehouse, minStock),
@@ -130,7 +130,7 @@ func checkOverdueInvoices(db *sql.DB) {
 		// Notifikasi tiap H-0, H-3, H-7 yang masih belum bayar
 		db.Exec(`
 			INSERT INTO notifications (id, title, message, type, is_read, created_at)
-			VALUES (gen_random_uuid(), $1, $2, 'error', false, NOW())`,
+			VALUES (UUID(), ?, ?, 'error', false, NOW())`,
 			fmt.Sprintf("Invoice %s Overdue %d Hari", invNum, daysOverdue),
 			fmt.Sprintf("Invoice %s dari %s sudah lewat %d hari, sisa Rp %.0f", invNum, supplier, daysOverdue, remaining),
 		)

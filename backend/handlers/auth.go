@@ -40,7 +40,7 @@ func (h *Handler) Login(c *gin.Context) {
 	err := h.DB.QueryRow(`
 		SELECT id, name, email, role, password_hash, is_active
 		FROM users
-		WHERE email = $1
+		WHERE email = ?
 	`, req.Email).Scan(&userID, &name, &email, &role, &passHash, &isActive)
 
 	if err == sql.ErrNoRows {
@@ -65,7 +65,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	// Update last login
-	h.DB.Exec("UPDATE users SET last_login_at = $1 WHERE id = $2", time.Now(), userID)
+	h.DB.Exec("UPDATE users SET last_login_at = ? WHERE id = ?", time.Now(), userID)
 
 	// Generate JWT
 	token, refreshToken, err := generateTokens(userID, email, role, name)

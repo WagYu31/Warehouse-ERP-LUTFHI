@@ -48,7 +48,7 @@ func AuditLogger() gin.HandlerFunc {
 		go func() {
 			auditDB.Exec(`
 				INSERT INTO audit_logs (id, user_id, action, resource, ip_address, status_code, duration_ms, created_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				uuid.New().String(),
 				userID,
 				method+" "+path,

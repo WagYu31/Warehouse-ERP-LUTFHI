@@ -153,9 +153,9 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 	// ── 2. Transaksi bulan ini ────────────────────────────
 	var inMth, outMth int
 	h.DB.QueryRow(`SELECT COUNT(*) FROM inbound_transactions
-		WHERE TO_CHAR(received_date,'YYYY-MM')=$1`, thisMon).Scan(&inMth)
+		WHERE DATE_FORMAT(received_date,'%Y-%m')=?`, thisMon).Scan(&inMth)
 	h.DB.QueryRow(`SELECT COUNT(*) FROM outbound_transactions
-		WHERE TO_CHAR(outbound_date,'YYYY-MM')=$1`, thisMon).Scan(&outMth)
+		WHERE DATE_FORMAT(outbound_date,'%Y-%m')=?`, thisMon).Scan(&outMth)
 	sb.WriteString(fmt.Sprintf("🔄 Bulan ini: %d masuk | %d keluar\n", inMth, outMth))
 
 	var pendingReq int
@@ -173,7 +173,7 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 		JOIN outbound_transactions ot ON oi.transaction_id = ot.id
 		JOIN items i ON oi.item_id = i.id
 		LEFT JOIN item_stocks s ON s.item_id = i.id
-		WHERE ot.outbound_date >= $1
+		WHERE ot.outbound_date >= ?
 		GROUP BY i.id, i.name, i.sku, i.min_stock
 		ORDER BY total_out DESC LIMIT 5`, ago3m)
 	if err1 == nil {
@@ -212,7 +212,7 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 		        FROM outbound_items oi
 		        JOIN outbound_transactions ot ON oi.transaction_id = ot.id
 		        WHERE oi.item_id = i.id
-		          AND ot.outbound_date >= $1
+		          AND ot.outbound_date >= ?
 		      )
 		GROUP BY i.id, i.name, i.sku, i.min_stock
 		HAVING COALESCE(SUM(s.current_stock),0) > 0
@@ -247,7 +247,7 @@ func (h *Handler) buildWMSContext(role, userID string) string {
 		    SELECT oi.item_id, SUM(oi.qty) AS total_out
 		    FROM outbound_items oi
 		    JOIN outbound_transactions ot ON oi.transaction_id = ot.id
-		    WHERE ot.outbound_date >= $1
+		    WHERE ot.outbound_date >= ?
 		    GROUP BY oi.item_id
 		) out_sub ON out_sub.item_id = i.id
 		WHERE i.is_active = true

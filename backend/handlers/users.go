@@ -22,7 +22,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 		AvatarURL *string `json:"avatar_url"`
 		IsActive  bool    `json:"is_active"`
 	}
-	err := h.DB.QueryRow(`SELECT id, name, email, role, phone, avatar_url, is_active FROM users WHERE id = $1`, userID).
+	err := h.DB.QueryRow(`SELECT id, name, email, role, phone, avatar_url, is_active FROM users WHERE id = ?`, userID).
 		Scan(&user.ID, &user.Name, &user.Email, &user.Role, &user.Phone, &user.AvatarURL, &user.IsActive)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "User tidak ditemukan"})
@@ -39,7 +39,7 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 		Phone string `json:"phone"`
 	}
 	c.ShouldBindJSON(&body)
-	h.DB.Exec(`UPDATE users SET name=$1, phone=$2, updated_at=$3 WHERE id=$4`,
+	h.DB.Exec(`UPDATE users SET name=?, phone=?, updated_at=? WHERE id=?`,
 		body.Name, body.Phone, time.Now(), userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Profil berhasil diperbarui"})
 }
@@ -85,7 +85,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	id := uuid.New().String()
 	_, err := h.DB.Exec(
-		`INSERT INTO users (id, name, email, password_hash, role) VALUES ($1,$2,$3,$4,$5)`,
+		`INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
 		id, body.Name, body.Email, string(hash), body.Role,
 	)
 	if err != nil {
@@ -104,7 +104,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		IsActive *bool  `json:"is_active"`
 	}
 	c.ShouldBindJSON(&body)
-	h.DB.Exec(`UPDATE users SET name=$1, role=$2, is_active=$3, updated_at=$4 WHERE id=$5`,
+	h.DB.Exec(`UPDATE users SET name=?, role=?, is_active=?, updated_at=? WHERE id=?`,
 		body.Name, body.Role, body.IsActive, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "User berhasil diperbarui"})
 }
@@ -112,7 +112,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 // ── DELETE /api/users/:id ─────────────────────────────────────
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
-	h.DB.Exec(`UPDATE users SET is_active=false WHERE id=$1`, id)
+	h.DB.Exec(`UPDATE users SET is_active=false WHERE id=?`, id)
 	c.JSON(http.StatusOK, gin.H{"message": "User dinonaktifkan"})
 }
 
@@ -136,7 +136,7 @@ func (h *Handler) CreateWarehouse(c *gin.Context) {
 	var b struct { Code string `json:"code"`; Name string `json:"name"`; City string `json:"city"` }
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO warehouses (id,code,name,city) VALUES ($1,$2,$3,$4)`, id, b.Code, b.Name, b.City)
+	h.DB.Exec(`INSERT INTO warehouses (id,code,name,city) VALUES (?,?,?,?)`, id, b.Code, b.Name, b.City)
 	c.JSON(http.StatusCreated, gin.H{"message": "Gudang berhasil dibuat", "id": id})
 }
 
@@ -144,12 +144,12 @@ func (h *Handler) UpdateWarehouse(c *gin.Context) {
 	id := c.Param("id")
 	var b struct { Name string `json:"name"`; City string `json:"city"` }
 	c.ShouldBindJSON(&b)
-	h.DB.Exec(`UPDATE warehouses SET name=$1,city=$2,updated_at=$3 WHERE id=$4`, b.Name, b.City, time.Now(), id)
+	h.DB.Exec(`UPDATE warehouses SET name=?,city=?,updated_at=? WHERE id=?`, b.Name, b.City, time.Now(), id)
 	c.JSON(http.StatusOK, gin.H{"message": "Gudang diperbarui"})
 }
 
 func (h *Handler) DeleteWarehouse(c *gin.Context) {
-	h.DB.Exec(`UPDATE warehouses SET is_active=false WHERE id=$1`, c.Param("id"))
+	h.DB.Exec(`UPDATE warehouses SET is_active=false WHERE id=?`, c.Param("id"))
 	c.JSON(http.StatusOK, gin.H{"message": "Gudang dinonaktifkan"})
 }
 
@@ -171,7 +171,7 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 	var b struct { Name string `json:"name"` }
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO categories (id,name) VALUES ($1,$2)`, id, b.Name)
+	h.DB.Exec(`INSERT INTO categories (id,name) VALUES (?,?)`, id, b.Name)
 	c.JSON(http.StatusCreated, gin.H{"message": "Kategori dibuat", "id": id})
 }
 
@@ -193,6 +193,6 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 	var b struct { Name string `json:"name"`; Abbreviation string `json:"abbreviation"` }
 	c.ShouldBindJSON(&b)
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO units (id,name,abbreviation) VALUES ($1,$2,$3)`, id, b.Name, b.Abbreviation)
+	h.DB.Exec(`INSERT INTO units (id,name,abbreviation) VALUES (?,?,?)`, id, b.Name, b.Abbreviation)
 	c.JSON(http.StatusCreated, gin.H{"message": "Satuan dibuat", "id": id})
 }
