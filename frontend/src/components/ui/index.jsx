@@ -158,25 +158,27 @@ export function DataTable({ columns, data, loading, onView, onEdit, onDelete, em
               ))}
               {(onView || onEdit || onDelete) && (
                 <td className="py-3.5 px-2">
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                  <div className="flex items-center gap-1 justify-end">
                     {onView && (
                       <button onClick={() => onView(row)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Lihat Detail">
+                        className="p-1.5 rounded-lg text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Lihat Detail">
                         <Eye size={14} />
                       </button>
                     )}
-                    {onEdit && (
-                      <button onClick={() => onEdit(row)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
-                        <Edit size={14} />
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button onClick={() => onDelete(row)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {onEdit && (
+                        <button onClick={() => onEdit(row)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
+                          <Edit size={14} />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button onClick={() => onDelete(row)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </td>
               )}

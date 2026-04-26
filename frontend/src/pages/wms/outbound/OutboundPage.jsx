@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowUpCircle, Plus } from 'lucide-react'
+import { ArrowUpCircle, Plus, Eye, Building2, FileText, User } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -14,6 +14,15 @@ const COLS = [
   { key: 'status',         label: 'Status', render: v => <StatusBadge value={v} /> },
 ]
 
+function DR({ label, value }) {
+  return (
+    <div className="flex justify-between items-start py-2 border-b border-white/[0.05] last:border-0">
+      <span className="text-slate-500 text-xs">{label}</span>
+      <span className="text-sm font-medium text-white text-right max-w-[60%]">{value ?? '—'}</span>
+    </div>
+  )
+}
+
 export default function OutboundPage() {
   const { user } = useAuthStore()
   const canCreate = ['admin', 'staff'].includes(user?.role)
@@ -23,6 +32,8 @@ export default function OutboundPage() {
   const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [form, setForm]       = useState({ warehouse_id:'', outbound_date: new Date().toISOString().slice(0,10), destination:'', notes:'' })
   const [lines, setLines]     = useState([{ item_id:'', qty_issued:1 }])
 
@@ -51,13 +62,63 @@ export default function OutboundPage() {
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
 
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
+
   return (
     <PageShell>
       <PageHeader icon={ArrowUpCircle} title="Barang Keluar" subtitle="Pengeluaran stok dari gudang" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Catat Keluar" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nomor dokumen..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada pengeluaran barang" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada pengeluaran barang" />
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-orange-500/15 border border-orange-500/20 flex items-center justify-center">
+            <Eye size={14} className="text-orange-400" />
+          </div>
+          <div>
+            <div className="text-white font-bold">{selected?.ref_number}</div>
+            <div className="text-slate-500 text-xs">Barang Keluar</div>
+          </div>
+        </div>
+      }>
+        {selected && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={14} className="text-orange-400" />
+                  <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Info Dokumen</span>
+                </div>
+                <DR label="No. Dokumen" value={selected.ref_number} />
+                <DR label="Tanggal Keluar" value={selected.outbound_date ? new Date(selected.outbound_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'} />
+                <DR label="Jumlah Item" value={selected.item_count || '—'} />
+                <DR label="Status" value={<StatusBadge value={selected.status} />} />
+              </div>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={14} className="text-orange-400" />
+                  <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Detail</span>
+                </div>
+                <DR label="Gudang Asal" value={selected.warehouse_name || '—'} />
+                <DR label="Tujuan / Destinasi" value={selected.destination || '—'} />
+                <DR label="Diproses Oleh" value={selected.issued_by_name || '—'} />
+              </div>
+            </div>
+            {selected.notes && (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500 mb-1">Catatan</p>
+                <p className="text-sm text-slate-300">{selected.notes}</p>
+              </div>
+            )}
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-semibold text-sm">Tutup</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Catat Barang Keluar" size="lg">
         <div className="space-y-5">

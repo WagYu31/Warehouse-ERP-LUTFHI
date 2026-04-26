@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, ArrowLeftRight } from 'lucide-react'
+import { RotateCcw, ArrowLeftRight, Eye, FileText, Building2 } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
@@ -28,6 +28,8 @@ export default function ReturnPage() {
   const [warehouses, setWarehouses] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal]   = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [form, setForm]     = useState({ return_type: 'to_supplier', supplier_id: '', reason: '', notes: '', return_date: '' })
   const [lines, setLines]   = useState([{ item_id: '', qty: 1, warehouse_id: '', unit_price: 0 }])
 
@@ -66,6 +68,8 @@ export default function ReturnPage() {
     toast.success('Retur diapprove, stok disesuaikan'); load()
   }
 
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
+
   const COLS_WITH_ACTION = [
     ...COLS,
     { key: 'id', label: 'Aksi', render: (id, row) => row.status === 'pending' ? (
@@ -82,8 +86,53 @@ export default function ReturnPage() {
         onRefresh={load} onAdd={() => setModal(true)} addLabel="Buat Retur" />
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS_WITH_ACTION} data={data} loading={loading} emptyMessage="Belum ada retur barang" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada retur barang" />
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-orange-500/15 border border-orange-500/20 flex items-center justify-center">
+            <Eye size={14} className="text-orange-400" />
+          </div>
+          <div>
+            <div className="text-white font-bold">{selected?.ref_number}</div>
+            <div className="text-slate-500 text-xs">Retur Barang</div>
+          </div>
+        </div>
+      }>
+        {selected && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={14} className="text-orange-400" />
+                  <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Info Retur</span>
+                </div>
+                <div className="flex justify-between items-start py-2 border-b border-white/[0.05]"><span className="text-slate-500 text-xs">No. Retur</span><span className="text-sm font-medium text-orange-400 font-mono">{selected.ref_number}</span></div>
+                <div className="flex justify-between items-start py-2 border-b border-white/[0.05]"><span className="text-slate-500 text-xs">Tanggal</span><span className="text-sm font-medium text-white">{selected.return_date ? new Date(selected.return_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'}</span></div>
+                <div className="flex justify-between items-start py-2 border-b border-white/[0.05]"><span className="text-slate-500 text-xs">Tipe</span><span className="text-sm font-medium text-cyan-400">{TYPE_LABEL[selected.type] || selected.type}</span></div>
+                <div className="flex justify-between items-start py-2"><span className="text-slate-500 text-xs">Status</span><StatusBadge value={selected.status} /></div>
+              </div>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={14} className="text-orange-400" />
+                  <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Detail</span>
+                </div>
+                <div className="flex justify-between items-start py-2 border-b border-white/[0.05]"><span className="text-slate-500 text-xs">Supplier</span><span className="text-sm font-medium text-white">{selected.supplier_name || '—'}</span></div>
+                <div className="flex justify-between items-start py-2 border-b border-white/[0.05]"><span className="text-slate-500 text-xs">Gudang</span><span className="text-sm font-medium text-white">{selected.warehouse_name || '—'}</span></div>
+                <div className="flex justify-between items-start py-2"><span className="text-slate-500 text-xs">Alasan</span><span className="text-sm text-slate-300 text-right max-w-[60%]">{selected.reason || '—'}</span></div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              {selected.status === 'pending' && (
+                <button onClick={() => { approve(selected.id); setDetailModal(false) }} className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 font-medium text-sm">✅ Approve</button>
+              )}
+              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-semibold text-sm">Tutup</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Buat Retur Barang" size="lg">
         <div className="space-y-4">

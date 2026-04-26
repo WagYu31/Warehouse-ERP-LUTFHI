@@ -93,7 +93,7 @@ export default function DeliveryOrderPage() {
         onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Surat Jalan" />
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS_WITH_ACTION} data={data} loading={loading} emptyMessage="Belum ada surat jalan" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openDetail} emptyMessage="Belum ada surat jalan" />
       </div>
 
       {/* Buat DO Modal */}
@@ -185,7 +185,7 @@ export default function DeliveryOrderPage() {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.06] text-white hover:bg-white/[0.1] text-sm font-medium">
                 <Printer size={15} /> Print Surat Jalan
               </button>
-              {detail.status === 'pending' && (
+              {detail.status === 'pending' && user?.role === 'admin' && (
                 <button onClick={() => confirmDelivery(detail.id)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold">
                   <CheckCircle size={15} /> Konfirmasi Diterima

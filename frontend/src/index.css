@@ -708,3 +708,159 @@
 [data-theme='dark']  .icon-moon { opacity: 1; transform: rotate(0deg) scale(1); }
 [data-theme='dark']  .icon-sun  { opacity: 0; transform: rotate(-90deg) scale(0.4); }
 
+
+
+/* ══════════════════════════════════════════════════════════════
+   DASHBOARD PREMIUM — Light Mode Overrides (DashboardPage.jsx)
+   ══════════════════════════════════════════════════════════════ */
+
+/* SVG chart: hover label in light mode should be dark */
+[data-theme='light'] { --chart-label-hover: #0F172A; }
+
+/* ── Gradient Stat Cards ── */
+/* Remove dark gradients in light mode — use clean white+border */
+[data-theme='light'] .stat-card[class*="from-amber"],
+[data-theme='light'] .stat-card[class*="from-rose"],
+[data-theme='light'] .stat-card[class*="from-blue"],
+[data-theme='light'] .stat-card[class*="from-emerald"],
+[data-theme='light'] .stat-card[class*="from-violet"],
+[data-theme='light'] .stat-card[class*="from-orange"] {
+  background: #FFFFFF !important;
+  background-image: none !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04) !important;
+}
+
+/* Keep a subtle tint on the top-left corner via a re-applied gradient */
+[data-theme='light'] .bg-gradient-to-br.stat-card { background-image: none !important; }
+
+/* Stat card ghost icon & ambient blob — dim in light mode */
+[data-theme='light'] .stat-card .opacity-\[0\.06\] { opacity: 0.04 !important; }
+[data-theme='light'] .stat-card > div > div.absolute.-top-4 { opacity: 0.12 !important; }
+
+/* StatCard icon badge */
+[data-theme='light'] .bg-amber-500\/15 { background: #FEF3C7 !important; }
+[data-theme='light'] .bg-rose-500\/15  { background: #FEE2E2 !important; }
+[data-theme='light'] .bg-blue-500\/15  { background: #DBEAFE !important; }
+[data-theme='light'] .bg-emerald-500\/15 { background: #D1FAE5 !important; }
+[data-theme='light'] .bg-violet-500\/15 { background: #EDE9FE !important; }
+[data-theme='light'] .bg-orange-500\/15 { background: #FED7AA !important; }
+
+/* Icon badge borders */
+[data-theme='light'] .border-amber-500\/35   { border-color: #FDE68A !important; }
+[data-theme='light'] .border-rose-500\/35    { border-color: #FECACA !important; }
+[data-theme='light'] .border-blue-500\/35    { border-color: #BFDBFE !important; }
+[data-theme='light'] .border-emerald-500\/35 { border-color: #A7F3D0 !important; }
+[data-theme='light'] .border-violet-500\/35  { border-color: #DDD6FE !important; }
+[data-theme='light'] .border-orange-500\/35  { border-color: #FED7AA !important; }
+
+/* StatCard value text glow — remove in light mode */
+[data-theme='light'] .text-amber-400  { text-shadow: none !important; }
+[data-theme='light'] .text-violet-400 { text-shadow: none !important; }
+[data-theme='light'] .text-blue-400   { text-shadow: none !important; }
+[data-theme='light'] .text-emerald-400 { text-shadow: none !important; }
+[data-theme='light'] .text-rose-400   { text-shadow: none !important; }
+[data-theme='light'] .text-orange-400 { text-shadow: none !important; }
+
+/* StatCard bottom accent */
+[data-theme='light'] .stat-card .absolute.bottom-0 { opacity: 0.3 !important; }
+
+/* ── Sisa Anggaran Card (Amber gradient card) ── */
+[data-theme='light'] .border-amber-500\/20 {
+  background: #FFFBEB !important;
+  background-image: none !important;
+  border-color: #FDE68A !important;
+}
+[data-theme='light'] .from-amber-500\/10 {
+  background: #FFFBEB !important;
+  background-image: none !important;
+}
+[data-theme='light'] .text-amber-400.text-4xl { color: #B45309 !important; }
+
+/* ── Chart container (glass/dark bg in light mode) ── */
+[data-theme='light'] .section-in.rounded-2xl[style*="linear-gradient(145deg"] {
+  background: #FFFFFF !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+}
+
+/* Chart header + footer dark bgs */
+[data-theme='light'] [style*="rgba(255,255,255,0.012)"] { background: #F8FAFC !important; }
+[data-theme='light'] [style*="rgba(255,255,255,0.01)"]  { background: #F8FAFC !important; }
+
+/* ── Series toggle buttons ── */
+[data-theme='light'] .dark-mode-light { color: #1E293B !important; }
+
+/* Series toggle button bg in light mode */
+[data-theme='light'] button[style*="rgba(255,255,255,0.02)"] {
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Year dropdown in light mode */
+[data-theme='light'] select[style*="rgba(234,179,8"] {
+  background: #FEF3C7 !important;
+  color: #92400E !important;
+  border-color: #FDE68A !important;
+}
+
+/* ── Quick Actions ── */
+[data-theme='light'] .action-link {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+[data-theme='light'] .action-link:hover {
+  background: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important;
+}
+
+/* Quick action icon badges */
+[data-theme='light'] .bg-violet-500\/15.border-violet-500\/25 { background: #EDE9FE !important; border-color: #DDD6FE !important; }
+[data-theme='light'] .bg-emerald-500\/15.border-emerald-500\/25 { background: #D1FAE5 !important; border-color: #A7F3D0 !important; }
+[data-theme='light'] .bg-amber-500\/15.border-amber-500\/25 { background: #FEF3C7 !important; border-color: #FDE68A !important; }
+[data-theme='light'] .bg-blue-500\/15.border-blue-500\/25 { background: #DBEAFE !important; border-color: #BFDBFE !important; }
+[data-theme='light'] .bg-orange-500\/15.border-orange-500\/25 { background: #FED7AA !important; border-color: #FDBA74 !important; }
+[data-theme='light'] .bg-rose-500\/15.border-rose-500\/25 { background: #FEE2E2 !important; border-color: #FECACA !important; }
+
+/* ── Animated gradient text (name in heading) ── */
+/* WebkitTextFillColor:transparent cannot be overridden by .text-white rule,
+   so we strip the gradient and let it inherit normal text color */
+[data-theme='light'] h1 span[style*="WebkitTextFillColor"] {
+  -webkit-text-fill-color: #92400E !important;
+  background: none !important;
+  animation: none !important;
+}
+
+/* ── Recent Transactions container ── */
+[data-theme='light'] .section-in.rounded-2xl[style*="rgba(255,255,255,0.015)"] {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* ── Text-slate overrides for Space Grotesk headings ── */
+[data-theme='light'] .text-white[style*="Space Grotesk"] { color: #0F172A !important; }
+
+/* Role badge float */
+[data-theme='light'] .role-badge {
+  background: linear-gradient(to right, #FEF3C7, #FFFBEB) !important;
+  color: #92400E !important;
+  border-color: #FDE68A !important;
+  box-shadow: 0 0 16px rgba(234,179,8,0.1) !important;
+}
+
+/* Section-in containers that use dark bg via inline style */
+[data-theme='light'] .section-in { color: var(--text-primary); }
+
+/* Amber border glow on budget card container */
+[data-theme='light'] [style*="rgba(234,179,8,0.06)"] {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+}
+
+/* Progress bar track */
+[data-theme='light'] .h-1\.5.rounded-full.bg-white\/\[0\.06\] {
+  background: #E2E8F0 !important;
+}
+
+/* Chart footer border */
+[data-theme='light'] .border-white\/\[0\.06\] { border-color: #E2E8F0 !important; }
+[data-theme='light'] .border-white\/\[0\.07\] { border-color: #E2E8F0 !important; }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeftRight, Warehouse } from 'lucide-react'
+import { ArrowLeftRight, Warehouse, Eye, FileText } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -22,6 +22,8 @@ export default function StockTransferPage() {
   const [itemStocks, setItemStocks] = useState([])
   const [loading, setLoading]     = useState(true)
   const [modal, setModal]         = useState(false)
+  const [detailModal, setDetailModal] = useState(false)
+  const [selected, setSelected]   = useState(null)
   const [form, setForm]           = useState({ from_warehouse_id: '', to_warehouse_id: '', transfer_date: new Date().toISOString().slice(0,10), notes: '' })
   const [lines, setLines]         = useState([{ item_id: '', qty: 1 }])
 
@@ -68,14 +70,69 @@ export default function StockTransferPage() {
     }
   }
 
+  const openView = (row) => { setSelected(row); setDetailModal(true) }
+
   return (
     <PageShell>
       <PageHeader icon={ArrowLeftRight} title="Transfer Stok" subtitle="Pindah stok antar gudang"
         onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Transfer" />
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <DataTable columns={COLS} data={data} loading={loading} emptyMessage="Belum ada transfer stok" />
+        <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada transfer stok" />
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
+            <Eye size={14} className="text-blue-400" />
+          </div>
+          <div>
+            <div className="text-white font-bold">{selected?.ref_number}</div>
+            <div className="text-slate-500 text-xs">Transfer Stok</div>
+          </div>
+        </div>
+      }>
+        {selected && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText size={14} className="text-blue-400" />
+                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Info Transfer</span>
+              </div>
+              <div className="flex justify-between items-start py-2 border-b border-white/[0.05]">
+                <span className="text-slate-500 text-xs">No. Transfer</span>
+                <span className="text-sm font-medium text-blue-400 font-mono">{selected.ref_number}</span>
+              </div>
+              <div className="flex justify-between items-start py-2 border-b border-white/[0.05]">
+                <span className="text-slate-500 text-xs">Tanggal</span>
+                <span className="text-sm font-medium text-white">{selected.transfer_date ? new Date(selected.transfer_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'}</span>
+              </div>
+              <div className="flex justify-between items-start py-2 border-b border-white/[0.05]">
+                <span className="text-slate-500 text-xs">Dari Gudang</span>
+                <span className="text-sm font-medium text-orange-400">{selected.from_warehouse || '—'}</span>
+              </div>
+              <div className="flex justify-between items-start py-2 border-b border-white/[0.05]">
+                <span className="text-slate-500 text-xs">Ke Gudang</span>
+                <span className="text-sm font-medium text-emerald-400">{selected.to_warehouse || '—'}</span>
+              </div>
+              <div className="flex justify-between items-start py-2">
+                <span className="text-slate-500 text-xs">Status</span>
+                <StatusBadge value={selected.status} />
+              </div>
+            </div>
+            {selected.notes && (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500 mb-1">Catatan</p>
+                <p className="text-sm text-slate-300">{selected.notes}</p>
+              </div>
+            )}
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white font-semibold text-sm">Tutup</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Buat Transfer Stok" size="lg">
         <div className="space-y-4">
