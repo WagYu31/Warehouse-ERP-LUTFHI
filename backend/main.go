@@ -211,6 +211,7 @@ func main() {
 			protected.POST("/returns", middleware.RequireRole("admin", "staff", "finance_procurement"), h.CreateReturn)
 			protected.GET("/returns/:id", h.GetReturnDetail)
 			protected.PUT("/returns/:id/approve", middleware.RequireRole("admin"), h.ApproveReturn)
+			protected.PUT("/returns/:id/reject", middleware.RequireRole("admin"), h.RejectReturn)
 
 			// Requests (SPB)
 			protected.GET("/requests", h.GetRequests)

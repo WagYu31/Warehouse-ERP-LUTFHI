@@ -323,9 +323,14 @@ func (h *Handler) CreateReturn(c *gin.Context) {
 	if b.ReturnDate != "" { retDate, _ = time.Parse("2006-01-02", b.ReturnDate) }
 
 	tx, _ := h.DB.Begin()
+	// Map frontend type to MySQL enum
+	mysqlType := "outbound"
+	if b.ReturnType == "from_customer" || b.ReturnType == "inbound" {
+		mysqlType = "inbound"
+	}
 	tx.Exec(`INSERT INTO returns (id,ref_number,type,supplier_id,reason,notes,return_date,created_by,status)
 		VALUES (?,?,?,?,?,?,?,?,'pending')`,
-		id, retNum, b.ReturnType, nullStr(b.SupplierID), b.Reason, b.Notes, retDate, createdBy)
+		id, retNum, mysqlType, nullStr(b.SupplierID), b.Reason, b.Notes, retDate, createdBy)
 
 	for _, item := range b.Items {
 		tx.Exec(`INSERT INTO return_items (id,return_id,item_id,qty,warehouse_id,unit_price)
@@ -376,30 +381,33 @@ func (h *Handler) GetReturnDetail(c *gin.Context) {
 func (h *Handler) ApproveReturn(c *gin.Context) {
 	id := c.Param("id")
 	var retType string
-	h.DB.QueryRow(`SELECT return_type FROM returns WHERE id=?`, id).Scan(&retType)
+	h.DB.QueryRow(`SELECT type FROM returns WHERE id=?`, id).Scan(&retType)
 
 	tx, _ := h.DB.Begin()
-	tx.Exec(`UPDATE returns SET status='approved', updated_at=? WHERE id=?`, time.Now(), id)
+	tx.Exec(`UPDATE returns SET status='approved', approved_by=?, updated_at=? WHERE id=?`,
+		c.GetString("user_id"), time.Now(), id)
 
-	// Kembalikan stok
-	rows, _ := h.DB.Query(`SELECT item_id, qty, warehouse_id FROM return_items WHERE return_id=?`, id)
-	defer rows.Close()
-	for rows.Next() {
-		var itemID, warehouseID string
-		var qty int
-		rows.Scan(&itemID, &qty, &warehouseID)
-
-		if retType == "from_customer" {
-			// Barang kembali ke gudang — tambah stok
+	// Kembalikan stok jika from_customer/inbound
+	if retType == "inbound" || retType == "from_customer" {
+		rows, _ := h.DB.Query(`SELECT item_id, qty, warehouse_id FROM return_items WHERE return_id=?`, id)
+		defer rows.Close()
+		for rows.Next() {
+			var itemID, warehouseID string
+			var qty int
+			rows.Scan(&itemID, &qty, &warehouseID)
 			tx.Exec(`UPDATE item_stocks SET current_stock = current_stock + ?, last_updated=NOW()
 				WHERE item_id=? AND warehouse_id=?`, qty, itemID, warehouseID)
-		} else {
-			// Retur ke supplier — stok sudah berkurang saat dibuat PO/Outbound
-			// Tidak perlu adjust stok lagi
 		}
 	}
 	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "Retur diapprove"})
+}
+
+func (h *Handler) RejectReturn(c *gin.Context) {
+	id := c.Param("id")
+	h.DB.Exec(`UPDATE returns SET status='rejected', approved_by=?, updated_at=? WHERE id=?`,
+		c.GetString("user_id"), time.Now(), id)
+	c.JSON(http.StatusOK, gin.H{"message": "Retur ditolak"})
 }
 
 // ══════════════════════════════════════════════════════════════

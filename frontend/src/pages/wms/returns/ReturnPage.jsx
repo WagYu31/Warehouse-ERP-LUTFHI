@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { RotateCcw, ArrowLeftRight, Eye, FileText, Building2 } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, DataTable, StatusBadge, Modal, FormField, Input, Select } from '@/components/ui'
 
 const STATUS_MAP = { pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }
@@ -22,6 +23,8 @@ const COLS = [
 ]
 
 export default function ReturnPage() {
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
   const [data, setData]     = useState([])
   const [items, setItems]   = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -64,15 +67,27 @@ export default function ReturnPage() {
 
   const approve = async (id) => {
     if (!confirm('Approve retur ini? Stok akan disesuaikan.')) return
-    await api.put(`/returns/${id}/approve`)
-    toast.success('Retur diapprove, stok disesuaikan'); load()
+    try {
+      await api.put(`/returns/${id}/approve`)
+      toast.success('Retur diapprove, stok disesuaikan'); load()
+      setDetailModal(false)
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal approve') }
+  }
+
+  const reject = async (id) => {
+    if (!confirm('Tolak retur ini?')) return
+    try {
+      await api.put(`/returns/${id}/reject`)
+      toast.success('Retur ditolak'); load()
+      setDetailModal(false)
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal reject') }
   }
 
   const openView = (row) => { setSelected(row); setDetailModal(true) }
 
   const COLS_WITH_ACTION = [
     ...COLS,
-    { key: 'id', label: 'Aksi', render: (id, row) => row.status === 'pending' ? (
+    { key: 'id', label: 'Aksi', render: (id, row) => isAdmin && row.status === 'pending' ? (
       <button onClick={() => approve(id)}
         className="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-medium">
         ✓ Approve
@@ -125,8 +140,17 @@ export default function ReturnPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              {selected.status === 'pending' && (
-                <button onClick={() => { approve(selected.id); setDetailModal(false) }} className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 font-medium text-sm">✅ Approve</button>
+              {selected.status === 'pending' && isAdmin && (
+                <>
+                  <button onClick={() => reject(selected.id)}
+                    className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-medium text-sm">
+                    ✕ Tolak
+                  </button>
+                  <button onClick={() => approve(selected.id)}
+                    className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 font-medium text-sm">
+                    ✅ Approve
+                  </button>
+                </>
               )}
               <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-semibold text-sm">Tutup</button>
             </div>
