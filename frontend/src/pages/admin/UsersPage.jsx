@@ -15,7 +15,11 @@ const COLS = [
   )},
   { key: 'email',          label: 'Email', render: v => <span className="text-slate-400 text-sm">{v}</span> },
   { key: 'role',           label: 'Role', render: v => <StatusBadge value={v} /> },
-  { key: 'warehouse_name', label: 'Gudang', render: v => <span className="text-slate-300 text-sm">{v || '—'}</span> },
+  { key: 'warehouse_name', label: 'Gudang', render: (v, row) => (
+    row.role === 'staff'
+      ? <span className="text-slate-300 text-sm">{v || '—'}</span>
+      : <span className="text-slate-600 text-sm">—</span>
+  )},
   { key: 'is_active',      label: 'Status', render: v => <StatusBadge value={v ? 'active' : 'inactive'} /> },
 ]
 
