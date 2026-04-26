@@ -263,10 +263,12 @@ func (h *Handler) GetReturns(c *gin.Context) {
 	rows, err := h.DB.Query(`
 		SELECT r.id, r.ref_number, r.type, r.status,
 		       COALESCE(DATE_FORMAT(r.return_date,'%Y-%m-%d'),''),
-		       COALESCE(r.reason,''), COALESCE(u.name,''), COALESCE(s.name,'')
+		       COALESCE(r.reason,''), COALESCE(u.name,''),
+		       COALESCE(s.name,''), COALESCE(w.name,'')
 		FROM returns r
 		LEFT JOIN users u ON r.created_by=u.id
 		LEFT JOIN suppliers s ON r.supplier_id=s.id
+		LEFT JOIN warehouses w ON r.warehouse_id=w.id
 		ORDER BY r.return_date DESC LIMIT 100`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": []gin.H{}})
@@ -275,14 +277,16 @@ func (h *Handler) GetReturns(c *gin.Context) {
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, refNum, retType, status, dateStr, reason, createdBy, supplierName string
-		if err := rows.Scan(&id, &refNum, &retType, &status, &dateStr, &reason, &createdBy, &supplierName); err != nil {
+		var id, refNum, retType, status, dateStr, reason, createdBy, supplierName, warehouseName string
+		if err := rows.Scan(&id, &refNum, &retType, &status, &dateStr, &reason, &createdBy, &supplierName, &warehouseName); err != nil {
 			continue
 		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": refNum, "return_number": refNum, "return_type": retType,
+			"id": id, "ref_number": refNum, "return_number": refNum,
+			"type": retType, "return_type": retType,
 			"status": status, "return_date": dateStr,
-			"reason": reason, "created_by": createdBy, "supplier": supplierName,
+			"reason": reason, "created_by": createdBy,
+			"supplier_name": supplierName, "warehouse_name": warehouseName,
 		})
 	}
 	if list == nil { list = []gin.H{} }
