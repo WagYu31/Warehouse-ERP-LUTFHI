@@ -136,8 +136,8 @@ func (h *Handler) GetItems(c *gin.Context) {
 		}
 
 		list = append(list, gin.H{
-			"id": id, "sku": sku, "name": name, "category": category,
-			"unit": unit, "min_stock": minStock, "current_stock": totalStock,
+			"id": id, "sku": sku, "name": name, "category_name": category,
+			"unit_name": unit, "unit_abbreviation": unit, "min_stock": minStock, "current_stock": totalStock,
 			"price": price, "status": status, "is_active": isActive == 1,
 		})
 	}

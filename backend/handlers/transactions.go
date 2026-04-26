@@ -33,8 +33,8 @@ func (h *Handler) GetInbound(c *gin.Context) {
 			continue
 		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": refNum, "date": dateStr,
-			"status": status, "supplier": supplier, "warehouse": warehouse, "received_by": receivedBy,
+			"id": id, "ref_number": refNum, "received_date": dateStr,
+			"status": status, "supplier_name": supplier, "warehouse_name": warehouse, "received_by": receivedBy,
 		})
 	}
 	if list == nil { list = []gin.H{} }
@@ -149,7 +149,7 @@ func (h *Handler) GetOutbound(c *gin.Context) {
 			continue
 		}
 		list = append(list, gin.H{
-			"id": id, "ref_number": ref, "date": dateStr,
+			"id": id, "ref_number": ref, "outbound_date": dateStr,
 			"status": status, "processed_by": processedBy,
 		})
 	}
