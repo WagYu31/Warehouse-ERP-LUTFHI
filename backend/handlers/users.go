@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 	"time"
 
@@ -136,15 +135,24 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 
 // ── GET /api/warehouses ───────────────────────────────────────
 func (h *Handler) GetWarehouses(c *gin.Context) {
-	rows, _ := h.DB.Query(`SELECT id, code, name, city, is_active FROM warehouses ORDER BY name`)
+	rows, _ := h.DB.Query(`
+		SELECT w.id, w.code, w.name, COALESCE(w.city,''), COALESCE(w.address,''), w.is_active,
+		       COALESCE(u.name,''), COALESCE(u.phone,'')
+		FROM warehouses w
+		LEFT JOIN user_warehouses uw ON uw.warehouse_id=w.id
+		LEFT JOIN users u ON u.id=uw.user_id AND u.role='staff' AND u.is_active=1
+		ORDER BY w.name`)
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
-		var id, code, name string
-		var city sql.NullString
+		var id, code, name, city, address, picName, picPhone string
 		var isActive bool
-		rows.Scan(&id, &code, &name, &city, &isActive)
-		list = append(list, gin.H{"id": id, "code": code, "name": name, "city": city.String, "is_active": isActive})
+		rows.Scan(&id, &code, &name, &city, &address, &isActive, &picName, &picPhone)
+		list = append(list, gin.H{
+			"id": id, "code": code, "name": name,
+			"city": city, "address": address, "is_active": isActive,
+			"pic_name": picName, "pic_phone": picPhone,
+		})
 	}
 	if list == nil {
 		list = []gin.H{}
