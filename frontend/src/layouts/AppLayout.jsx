@@ -24,13 +24,13 @@ const NAV = [
   {
     label: 'Manajemen Gudang',
     icon: Package,
-    roles: ['admin', 'staff', 'manager', 'requester'],
+    roles: ['admin', 'staff'],
     children: [
-      { label: 'Inventaris Stok',    icon: Search,         to: '/inventory',        roles: ['admin','staff','manager'] },
+      { label: 'Inventaris Stok',    icon: Search,         to: '/inventory',        roles: ['admin','staff'] },
       { label: 'Barang Masuk (GRN)', icon: ArrowDownCircle,to: '/inbound',          roles: ['admin','staff'] },
       { label: 'Barang Keluar',      icon: ArrowUpCircle,  to: '/outbound',         roles: ['admin','staff'] },
-      { label: 'Permintaan (SPB)',   icon: ClipboardList,  to: '/requests' },
-      { label: 'Stock Opname',       icon: RefreshCcw,     to: '/opname',           roles: ['admin','staff','manager'] },
+      { label: 'Permintaan (SPB)',   icon: ClipboardList,  to: '/requests',         roles: ['admin','staff'] },
+      { label: 'Stock Opname',       icon: RefreshCcw,     to: '/opname',           roles: ['admin','staff'] },
       { label: 'Transfer Stok',      icon: ArrowLeftRight, to: '/stock-transfer',   roles: ['admin','staff'] },
       { label: 'Surat Jalan (DO)',   icon: Send,           to: '/delivery-orders',  roles: ['admin','staff'] },
       { label: 'Retur Barang',       icon: RotateCcw,      to: '/returns',          roles: ['admin','staff'] },
