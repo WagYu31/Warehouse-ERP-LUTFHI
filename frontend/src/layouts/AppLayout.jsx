@@ -462,7 +462,7 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="flex items-center gap-4 px-6 py-4 border-b border-white/[0.06] bg-[#0D1221]/80 backdrop-blur-sm flex-shrink-0">
+        <header className="relative z-30 flex items-center gap-4 px-6 py-4 border-b border-white/[0.06] bg-[#0D1221]/80 backdrop-blur-sm flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors"
