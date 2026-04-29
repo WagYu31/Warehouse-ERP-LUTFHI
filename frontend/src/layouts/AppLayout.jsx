@@ -221,6 +221,7 @@ function WarehouseSelector() {
   const { selectedWarehouseId, setSelectedWarehouse, availableWarehouses, setAvailableWarehouses } = useWarehouseStore()
   const isAdmin = user?.role === 'admin'
   const myWarehouses = user?.warehouses || []
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const loadWarehouses = async () => {
@@ -229,15 +230,12 @@ function WarehouseSelector() {
         const all = Array.isArray(res) ? res : (res.data || [])
         if (isAdmin) {
           setAvailableWarehouses(all)
-          // Admin: default ke gudang pertama jika belum pilih
           if (!selectedWarehouseId && all.length > 0) {
             setSelectedWarehouse(all[0].id)
           }
         } else {
-          // Staff/non-admin: hanya gudang yang di-assign
           const mine = all.filter(w => myWarehouses.some(mw => mw.id === w.id))
           setAvailableWarehouses(mine)
-          // Auto-lock ke gudang pertama
           if (mine.length > 0) {
             setSelectedWarehouse(mine[0].id)
           }
@@ -247,30 +245,104 @@ function WarehouseSelector() {
     loadWarehouses()
   }, [user])
 
-  // Staff dengan 1 gudang: tampilkan label saja
+  const currentWarehouse = availableWarehouses.find(w => w.id === selectedWarehouseId)
+  const displayName = currentWarehouse?.name || 'Semua Gudang'
+  const displayCity = currentWarehouse?.city || ''
+
+  // Staff dengan 1 gudang: tampilkan label locked
   if (!isAdmin && availableWarehouses.length <= 1) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-        <Building2 size={14} className="text-gold-400" />
-        <span className="text-white text-xs font-medium">{availableWarehouses[0]?.name || '—'}</span>
+      <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-gold-500/10 to-gold-500/5 border border-gold-500/20">
+        <div className="w-7 h-7 rounded-lg bg-gold-500/15 flex items-center justify-center">
+          <Building2 size={14} className="text-gold-400" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-white text-xs font-semibold leading-tight truncate">{availableWarehouses[0]?.name || '—'}</p>
+          {availableWarehouses[0]?.city && <p className="text-gold-500/60 text-[10px] leading-tight">{availableWarehouses[0].city}</p>}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:border-gold-500/30 transition-all">
-      <Building2 size={14} className="text-gold-400 flex-shrink-0" />
-      <select
-        value={selectedWarehouseId || ''}
-        onChange={e => setSelectedWarehouse(e.target.value || null)}
-        className="bg-transparent text-white text-xs font-medium outline-none cursor-pointer appearance-none pr-4"
-        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M0 0l5 6 5-6z\' fill=\'%23888\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition-all duration-200 group
+          ${open
+            ? 'bg-gold-500/10 border-gold-500/30 shadow-lg shadow-gold-500/5'
+            : 'bg-white/[0.04] border-white/[0.08] hover:border-gold-500/25 hover:bg-white/[0.06]'
+          }`}
       >
-        {isAdmin && <option value="">Semua Gudang</option>}
-        {availableWarehouses.map(w => (
-          <option key={w.id} value={w.id} className="bg-[#1a1f2e] text-white">{w.name}</option>
-        ))}
-      </select>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${open ? 'bg-gold-500/20' : 'bg-gold-500/10 group-hover:bg-gold-500/15'}`}>
+          <Building2 size={14} className="text-gold-400" />
+        </div>
+        <div className="min-w-0 text-left">
+          <p className="text-white text-xs font-semibold leading-tight truncate max-w-[120px]">{displayName}</p>
+          {displayCity && <p className="text-slate-500 text-[10px] leading-tight">{displayCity}</p>}
+          {!currentWarehouse && isAdmin && <p className="text-gold-500/50 text-[10px] leading-tight">Filter global</p>}
+        </div>
+        <ChevronDown size={12} className={`text-slate-500 transition-transform duration-200 ml-1 ${open ? 'rotate-180 text-gold-400' : ''}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl border border-white/[0.1] bg-[#111827]/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden animate-fade-in">
+            {/* Header */}
+            <div className="px-4 py-2.5 border-b border-white/[0.06]">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Pilih Gudang</p>
+            </div>
+
+            {/* Options */}
+            <div className="py-1.5 max-h-64 overflow-y-auto custom-scrollbar">
+              {isAdmin && (
+                <button
+                  onClick={() => { setSelectedWarehouse(null); setOpen(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 transition-all text-left
+                    ${!selectedWarehouseId
+                      ? 'bg-gold-500/10 border-l-2 border-gold-500'
+                      : 'hover:bg-white/[0.04] border-l-2 border-transparent'
+                    }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${!selectedWarehouseId ? 'bg-gold-500/20' : 'bg-white/[0.06]'}`}>
+                    <Package size={14} className={!selectedWarehouseId ? 'text-gold-400' : 'text-slate-500'} />
+                  </div>
+                  <div>
+                    <p className={`text-xs font-semibold ${!selectedWarehouseId ? 'text-gold-400' : 'text-slate-300'}`}>Semua Gudang</p>
+                    <p className="text-[10px] text-slate-600">Gabungan {availableWarehouses.length} gudang</p>
+                  </div>
+                  {!selectedWarehouseId && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-gold-400 animate-pulse" />}
+                </button>
+              )}
+
+              {availableWarehouses.map(w => {
+                const isActive = selectedWarehouseId === w.id
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => { setSelectedWarehouse(w.id); setOpen(false) }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 transition-all text-left
+                      ${isActive
+                        ? 'bg-gold-500/10 border-l-2 border-gold-500'
+                        : 'hover:bg-white/[0.04] border-l-2 border-transparent'
+                      }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? 'bg-gold-500/20' : 'bg-white/[0.06]'}`}>
+                      <Building2 size={14} className={isActive ? 'text-gold-400' : 'text-slate-500'} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-semibold truncate ${isActive ? 'text-gold-400' : 'text-slate-300'}`}>{w.name}</p>
+                      <p className="text-[10px] text-slate-600 truncate">{w.city || w.code || '—'}</p>
+                    </div>
+                    {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-gold-400 animate-pulse flex-shrink-0" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
