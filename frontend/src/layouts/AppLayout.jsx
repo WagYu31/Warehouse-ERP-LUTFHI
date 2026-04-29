@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
+import { useWarehouseStore } from '@/store/warehouseStore'
 import {
   LayoutDashboard, Package, ArrowDownCircle, ArrowUpCircle,
   ClipboardList, Search, ShoppingCart, Truck, FileText,
@@ -215,9 +216,69 @@ function NotificationBell() {
   )
 }
 
+function WarehouseSelector() {
+  const { user } = useAuthStore()
+  const { selectedWarehouseId, setSelectedWarehouse, availableWarehouses, setAvailableWarehouses } = useWarehouseStore()
+  const isAdmin = user?.role === 'admin'
+  const myWarehouses = user?.warehouses || []
+
+  useEffect(() => {
+    const loadWarehouses = async () => {
+      try {
+        const res = await api.get('/warehouses')
+        const all = Array.isArray(res) ? res : (res.data || [])
+        if (isAdmin) {
+          setAvailableWarehouses(all)
+          // Admin: default ke gudang pertama jika belum pilih
+          if (!selectedWarehouseId && all.length > 0) {
+            setSelectedWarehouse(all[0].id)
+          }
+        } else {
+          // Staff/non-admin: hanya gudang yang di-assign
+          const mine = all.filter(w => myWarehouses.some(mw => mw.id === w.id))
+          setAvailableWarehouses(mine)
+          // Auto-lock ke gudang pertama
+          if (mine.length > 0) {
+            setSelectedWarehouse(mine[0].id)
+          }
+        }
+      } catch {}
+    }
+    loadWarehouses()
+  }, [user])
+
+  // Staff dengan 1 gudang: tampilkan label saja
+  if (!isAdmin && availableWarehouses.length <= 1) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+        <Building2 size={14} className="text-gold-400" />
+        <span className="text-white text-xs font-medium">{availableWarehouses[0]?.name || '—'}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:border-gold-500/30 transition-all">
+      <Building2 size={14} className="text-gold-400 flex-shrink-0" />
+      <select
+        value={selectedWarehouseId || ''}
+        onChange={e => setSelectedWarehouse(e.target.value || null)}
+        className="bg-transparent text-white text-xs font-medium outline-none cursor-pointer appearance-none pr-4"
+        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M0 0l5 6 5-6z\' fill=\'%23888\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
+      >
+        {isAdmin && <option value="">Semua Gudang</option>}
+        {availableWarehouses.map(w => (
+          <option key={w.id} value={w.id} className="bg-[#1a1f2e] text-white">{w.name}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function AppLayout() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
+  const { reset: resetWarehouse } = useWarehouseStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -228,6 +289,7 @@ export default function AppLayout() {
 
   const handleLogout = () => {
     logout()
+    resetWarehouse()
     toast.success('Berhasil logout')
     navigate('/login')
   }
@@ -335,6 +397,9 @@ export default function AppLayout() {
           >
             <Menu size={20} />
           </button>
+
+          {/* Global Warehouse Selector */}
+          <WarehouseSelector />
 
           <div className="flex-1" />
 

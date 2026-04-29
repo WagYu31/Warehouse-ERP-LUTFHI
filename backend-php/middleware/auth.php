@@ -9,7 +9,7 @@ function requireAuth(): array {
         $header = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
     }
 
-    if (!str_starts_with($header, 'Bearer ')) {
+    if (strpos($header, 'Bearer ') !== 0) {
         respondError('Authorization token required', 401);
     }
 

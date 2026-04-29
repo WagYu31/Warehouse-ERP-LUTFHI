@@ -3,6 +3,7 @@ import { Package, AlertTriangle, Eye, Tag, Layers, BarChart2, Settings2, Clock }
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { useWarehouseStore } from '@/store/warehouseStore'
 import {
   PageShell, PageHeader, SearchBar, DataTable, StatusBadge,
   Modal, FormField, Input, Select, Textarea
@@ -50,6 +51,7 @@ function DetailSection({ icon: Icon, title, children }) {
 
 export default function InventoryPage() {
   const { user } = useAuthStore()
+  const { selectedWarehouseId, getSelectedName } = useWarehouseStore()
   const isAdmin = user?.role === 'admin'
   const [data, setData]         = useState([])
   const [cats, setCats]         = useState([])
@@ -65,8 +67,9 @@ export default function InventoryPage() {
   const load = async () => {
     setLoading(true)
     try {
+      const whParam = selectedWarehouseId ? `&warehouse_id=${selectedWarehouseId}` : ''
       const [items, c, u] = await Promise.all([
-        api.get(`/items?search=${search}`),
+        api.get(`/items?search=${search}${whParam}`),
         api.get('/categories'),
         api.get('/units'),
       ])
@@ -77,7 +80,7 @@ export default function InventoryPage() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [search])
+  useEffect(() => { load() }, [search, selectedWarehouseId])
 
   const openAdd  = () => { setEditing(null); setForm({ sku:'', name:'', category_id:'', unit_id:'', min_stock:0, price:0, description:'' }); setModal(true) }
   const openEdit = (row) => { setEditing(row); setForm({ sku: row.sku, name: row.name, category_id:'', unit_id:'', min_stock: row.min_stock, price: row.price, description:'' }); setModal(true) }
@@ -117,7 +120,7 @@ export default function InventoryPage() {
     <PageShell>
       <PageHeader
         icon={Package} title="Inventaris Stok"
-        subtitle={`${data.length} item aktif`}
+        subtitle={`${data.length} item aktif — ${getSelectedName()}`}
         onRefresh={load} onAdd={isAdmin ? openAdd : undefined} onExport={exportCSV}
       />
 

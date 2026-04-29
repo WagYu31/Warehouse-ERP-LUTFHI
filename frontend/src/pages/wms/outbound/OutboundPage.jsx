@@ -3,6 +3,7 @@ import { ArrowUpCircle, Plus, Eye, Building2, FileText, User } from 'lucide-reac
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { useWarehouseStore } from '@/store/warehouseStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 
 const COLS = [
@@ -25,6 +26,7 @@ function DR({ label, value }) {
 
 export default function OutboundPage() {
   const { user } = useAuthStore()
+  const { selectedWarehouseId, getSelectedName } = useWarehouseStore()
   const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]       = useState([])
   const [items, setItems]     = useState([])
@@ -40,7 +42,8 @@ export default function OutboundPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [out, i, w] = await Promise.all([api.get('/outbound'), api.get('/items'), api.get('/warehouses')])
+      const whParam = selectedWarehouseId ? `?warehouse_id=${selectedWarehouseId}` : ''
+      const [out, i, w] = await Promise.all([api.get(`/outbound${whParam}`), api.get('/items'), api.get('/warehouses')])
       let d = out.data || []
       if (search) d = d.filter(r => r.ref_number?.toLowerCase().includes(search.toLowerCase()))
       setData(d); setItems(i.data||[]); setWarehouses(w.data||[])
@@ -48,7 +51,13 @@ export default function OutboundPage() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [search])
+  useEffect(() => { load() }, [search, selectedWarehouseId])
+
+  const openCreateModal = () => {
+    setForm({ warehouse_id: selectedWarehouseId || '', outbound_date: new Date().toISOString().slice(0,10), destination:'', notes:'' })
+    setLines([{ item_id:'', qty_issued:1 }])
+    setModal(true)
+  }
 
   const addLine = () => setLines([...lines, { item_id:'', qty_issued:1 }])
   const rmLine  = (i) => setLines(lines.filter((_,idx) => idx !== i))
@@ -66,7 +75,7 @@ export default function OutboundPage() {
 
   return (
     <PageShell>
-      <PageHeader icon={ArrowUpCircle} title="Barang Keluar" subtitle="Pengeluaran stok dari gudang" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Catat Keluar" />
+      <PageHeader icon={ArrowUpCircle} title="Barang Keluar" subtitle={`Pengeluaran stok — ${getSelectedName()}`} onRefresh={load} onAdd={canCreate ? openCreateModal : undefined} addLabel="Catat Keluar" />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari nomor dokumen..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada pengeluaran barang" />

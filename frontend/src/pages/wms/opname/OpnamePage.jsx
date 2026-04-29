@@ -3,6 +3,7 @@ import { ClipboardCheck, CheckCircle, AlertCircle, Clock, Eye, FileText, Buildin
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { useWarehouseStore } from '@/store/warehouseStore'
 import { PageShell, PageHeader, DataTable, Modal, FormField, Input, Select, StatusBadge } from '@/components/ui'
 
 function DR({ label, value }) {
@@ -25,6 +26,7 @@ const COLS = [
 
 export default function OpnamePage() {
   const { user } = useAuthStore()
+  const { selectedWarehouseId, getSelectedName } = useWarehouseStore()
   const isAdmin = user?.role === 'admin'
   const isStaff = user?.role === 'staff'
 
@@ -45,8 +47,9 @@ export default function OpnamePage() {
   const load = async () => {
     setLoading(true)
     try {
+      const whParam = selectedWarehouseId ? `?warehouse_id=${selectedWarehouseId}` : ''
       const [opRes, wRes] = await Promise.all([
-        api.get('/opname').catch(() => ({ data: [] })),
+        api.get(`/opname${whParam}`).catch(() => ({ data: [] })),
         api.get('/warehouses'),
       ])
       setData(Array.isArray(opRes) ? opRes : (opRes.data || []))
@@ -55,7 +58,7 @@ export default function OpnamePage() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [selectedWarehouseId])
 
   // Tahap 1: Admin buat opname
   const handleCreate = async () => {

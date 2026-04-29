@@ -3,7 +3,7 @@
 // Standard JSON Response helpers
 // ============================================================
 
-function respond(mixed $data, int $code = 200): void {
+function respond($data, int $code = 200): void {
     http_response_code($code);
     echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -25,7 +25,7 @@ function respondError(string $message, int $code = 400): void {
     exit;
 }
 
-function respondCreated(mixed $data): void {
+function respondCreated($data): void {
     respond($data, 201);
 }
 
