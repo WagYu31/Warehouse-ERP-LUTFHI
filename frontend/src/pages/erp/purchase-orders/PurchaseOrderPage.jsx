@@ -32,6 +32,7 @@ export default function PurchaseOrderPage() {
   const [suppliers, setSuppliers] = useState([])
   const [items, setItems]     = useState([])
   const [warehouses, setWarehouses] = useState([])
+  const [departments, setDepartments] = useState([])
   const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
@@ -40,16 +41,16 @@ export default function PurchaseOrderPage() {
   const [selected, setSelected] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const [form, setForm]       = useState({ supplier_id:'', warehouse_id:'', tax_rate:11, notes:'' })
+  const [form, setForm]       = useState({ supplier_id:'', warehouse_id:'', department_id:'', tax_rate:11, notes:'' })
   const [lines, setLines]     = useState([{ item_id:'', qty:1, unit_price:0 }])
 
   const load = async () => {
     setLoading(true)
     try {
-      const [po, s, i, w] = await Promise.all([api.get('/erp/purchase-orders'), api.get('/suppliers'), api.get('/items'), api.get('/warehouses')])
+      const [po, s, i, w, dept] = await Promise.all([api.get('/erp/purchase-orders'), api.get('/suppliers'), api.get('/items'), api.get('/warehouses'), api.get('/departments')])
       let d = po.data || []
       if (search) d = d.filter(r => r.po_number?.toLowerCase().includes(search.toLowerCase()) || r.supplier_name?.toLowerCase().includes(search.toLowerCase()))
-      setData(d); setSuppliers(s.data||[]); setItems(i.data||[]); setWarehouses(w.data||[])
+      setData(d); setSuppliers(s.data||[]); setItems(i.data||[]); setWarehouses(w.data||[]); setDepartments(dept.data||[])
     } catch { toast.error('Gagal memuat PO') }
     finally { setLoading(false) }
   }
@@ -72,7 +73,7 @@ export default function PurchaseOrderPage() {
     try {
       await api.post('/erp/purchase-orders', { ...form, items: validLines.map(l => ({ item_id:l.item_id, qty:+l.qty, unit_price:+l.unit_price })) })
       toast.success('Purchase Order dibuat! Menunggu approval Admin.')
-      setModal(false); setForm({ supplier_id:'', warehouse_id:'', tax_rate:11, notes:'' }); setLines([{ item_id:'', qty:1, unit_price:0 }]); load()
+      setModal(false); setForm({ supplier_id:'', warehouse_id:'', department_id:'', tax_rate:11, notes:'' }); setLines([{ item_id:'', qty:1, unit_price:0 }]); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
 
@@ -324,6 +325,13 @@ export default function PurchaseOrderPage() {
               </Select>
             </FormField>
           </div>
+
+          <FormField label="Departemen (untuk kontrol budget)">
+            <Select value={form.department_id} onChange={e => setForm({...form, department_id:e.target.value})}>
+              <option value="">— Tanpa departemen —</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </Select>
+          </FormField>
 
           <div className="border border-white/[0.06] rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">

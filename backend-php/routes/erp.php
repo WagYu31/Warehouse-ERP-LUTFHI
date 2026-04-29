@@ -56,9 +56,9 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
                     $total_amount += ($item['qty'] ?? 0) * ($item['unit_price'] ?? 0);
                 }
 
-                $db->prepare("INSERT INTO purchase_orders(id,po_number,supplier_id,warehouse_id,order_date,expected_date,payment_terms,notes,total_amount,status,created_by)
-                    VALUES(?,?,?,?,?,?,?,?,?,'draft',?)")
-                   ->execute([$id,$poNum,$b['supplier_id'],$b['warehouse_id']??null,date('Y-m-d'),$b['expected_date']??null,$b['payment_terms']??30,$b['notes']??null,$total_amount,$user['sub']]);
+                $db->prepare("INSERT INTO purchase_orders(id,po_number,supplier_id,warehouse_id,department_id,order_date,expected_date,payment_terms,notes,total_amount,status,created_by)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,'draft',?)")
+                   ->execute([$id,$poNum,$b['supplier_id'],$b['warehouse_id']??null,$b['department_id']??null,date('Y-m-d'),$b['expected_date']??null,$b['payment_terms']??30,$b['notes']??null,$total_amount,$user['sub']]);
 
                 $prep = $db->prepare("INSERT INTO po_items(id,po_id,item_id,qty_ordered,unit_price,notes) VALUES(?,?,?,?,?,?)");
                 foreach ($b['items'] as $item) {
@@ -115,6 +115,23 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
 
             $db->beginTransaction();
             try {
+                // Budget check & deduction
+                $budgetMsg = '';
+                if (!empty($po['department_id']) && $po['total_amount'] > 0) {
+                    $budgetStmt = $db->prepare("SELECT id, total_budget, used_budget FROM budgets WHERE department_id=? AND budget_year=YEAR(NOW()) LIMIT 1");
+                    $budgetStmt->execute([$po['department_id']]);
+                    $budget = $budgetStmt->fetch();
+                    if ($budget) {
+                        $sisa = $budget['total_budget'] - $budget['used_budget'];
+                        if ($po['total_amount'] > $sisa) {
+                            throw new Exception('Budget tidak cukup! Sisa: Rp ' . number_format($sisa, 0, ',', '.') . ', PO: Rp ' . number_format($po['total_amount'], 0, ',', '.'));
+                        }
+                        $db->prepare("UPDATE budgets SET used_budget=used_budget+?, updated_at=NOW() WHERE id=?")
+                           ->execute([$po['total_amount'], $budget['id']]);
+                        $budgetMsg = ' Budget terpotong Rp ' . number_format($po['total_amount'], 0, ',', '.');
+                    }
+                }
+
                 // Update PO status
                 $db->prepare("UPDATE purchase_orders SET status='approved',approved_by=?,updated_at=NOW() WHERE id=?")
                    ->execute([$user['sub'], $m[1]]);
@@ -131,7 +148,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
 
                 $db->commit();
                 respond([
-                    'message' => 'PO disetujui & Invoice otomatis dibuat!',
+                    'message' => 'PO disetujui & Invoice dibuat!' . $budgetMsg,
                     'invoice_id' => $invId,
                     'invoice_number' => $invNum
                 ]);
