@@ -126,7 +126,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
                         if ($po['total_amount'] > $sisa) {
                             throw new Exception('Budget tidak cukup! Sisa: Rp ' . number_format($sisa, 0, ',', '.') . ', PO: Rp ' . number_format($po['total_amount'], 0, ',', '.'));
                         }
-                        $db->prepare("UPDATE budgets SET used_budget=used_budget+?, updated_at=NOW() WHERE id=?")
+                        $db->prepare("UPDATE budgets SET used_budget=used_budget+? WHERE id=?")
                            ->execute([$po['total_amount'], $budget['id']]);
                         $budgetMsg = ' Budget terpotong Rp ' . number_format($po['total_amount'], 0, ',', '.');
                     }
