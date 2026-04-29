@@ -7,11 +7,11 @@ function getDB(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
 
-    $host   = getenv('DB_HOST') ?: 'localhost';
+    $host   = getenv('DB_HOST') ?: 'arzano-db.id.rapidplex.com';
     $port   = getenv('DB_PORT') ?: '3306';
-    $dbname = getenv('DB_NAME') ?: 'pitiagic_wms_lutfh';
+    $dbname = getenv('DB_NAME') ?: 'pitiagic_wms_lutfhi';
     $user   = getenv('DB_USER') ?: 'pitiagic_wms_user';
-    $pass   = getenv('DB_PASSWORD') ?: 'Admin123!@#';
+    $pass   = getenv('DB_PASSWORD') ?: 'Wms2026SecureDb';
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 
