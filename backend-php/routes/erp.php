@@ -93,12 +93,87 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             return;
         }
 
+        // PUT /purchase-orders/:id/status — Generic status update (backward compat)
         if ($method === 'PUT' && preg_match('#^/purchase-orders/([^/]+)/status$#', $sub, $m)) {
             requireRole($user, 'admin','finance_procurement');
             $b = requireBody(); requireFields($b, ['status']);
             $db->prepare("UPDATE purchase_orders SET status=?,updated_at=NOW() WHERE id=?")
                ->execute([$b['status'],$m[1]]);
             respond(['message'=>'PO status updated']);
+            return;
+        }
+
+        // PUT /purchase-orders/:id/approve — Admin approve PO
+        if ($method === 'PUT' && preg_match('#^/purchase-orders/([^/]+)/approve$#', $sub, $m)) {
+            requireRole($user, 'admin');
+            $chk = $db->prepare("SELECT id,status FROM purchase_orders WHERE id=?");
+            $chk->execute([$m[1]]);
+            $po = $chk->fetch();
+            if (!$po) respondError('PO tidak ditemukan', 404);
+            if ($po['status'] !== 'draft') respondError('Hanya PO draft yang bisa di-approve', 400);
+
+            $db->prepare("UPDATE purchase_orders SET status='approved',approved_by=?,updated_at=NOW() WHERE id=?")
+               ->execute([$user['sub'], $m[1]]);
+            respond(['message'=>'PO disetujui. Silakan terima barang saat supplier mengirim.']);
+            return;
+        }
+
+        // PUT /purchase-orders/:id/reject — Admin reject PO
+        if ($method === 'PUT' && preg_match('#^/purchase-orders/([^/]+)/reject$#', $sub, $m)) {
+            requireRole($user, 'admin');
+            $b = getBody();
+            $chk = $db->prepare("SELECT id,status FROM purchase_orders WHERE id=?");
+            $chk->execute([$m[1]]);
+            $po = $chk->fetch();
+            if (!$po) respondError('PO tidak ditemukan', 404);
+            if ($po['status'] !== 'draft') respondError('Hanya PO draft yang bisa ditolak', 400);
+
+            $db->prepare("UPDATE purchase_orders SET status='cancelled',reject_reason=?,updated_at=NOW() WHERE id=?")
+               ->execute([$b['reason']??'', $m[1]]);
+            respond(['message'=>'PO ditolak']);
+            return;
+        }
+
+        // POST /purchase-orders/:id/receive — Terima barang → Auto-create Inbound
+        if ($method === 'POST' && preg_match('#^/purchase-orders/([^/]+)/receive$#', $sub, $m)) {
+            requireRole($user, 'admin','staff');
+            $po = $db->prepare("SELECT * FROM purchase_orders WHERE id=?");
+            $po->execute([$m[1]]);
+            $poData = $po->fetch();
+            if (!$poData) respondError('PO tidak ditemukan', 404);
+            if ($poData['status'] !== 'approved') respondError('Hanya PO yang sudah di-approve yang bisa diterima', 400);
+
+            $db->beginTransaction();
+            try {
+                // Create inbound transaction from PO
+                $inboundId = generateUUID();
+                $ref = generateRef('GRN');
+                $db->prepare("INSERT INTO inbound_transactions(id,ref_number,supplier_id,warehouse_id,received_by,received_date,po_number,notes,status)
+                    VALUES(?,?,?,?,?,NOW(),?,?,'pending')")
+                   ->execute([$inboundId, $ref, $poData['supplier_id'], $poData['warehouse_id'], $user['sub'], $poData['po_number'], 'Auto-created dari PO '.$poData['po_number']]);
+
+                // Copy PO items to inbound items
+                $poItems = $db->prepare("SELECT item_id, qty_ordered, unit_price FROM po_items WHERE po_id=?");
+                $poItems->execute([$m[1]]);
+                $prepItem = $db->prepare("INSERT INTO inbound_items(id,transaction_id,item_id,qty_received,unit_price) VALUES(?,?,?,?,?)");
+                foreach ($poItems->fetchAll() as $item) {
+                    $prepItem->execute([generateUUID(), $inboundId, $item['item_id'], $item['qty_ordered'], $item['unit_price']]);
+                }
+
+                // Update PO status to received
+                $db->prepare("UPDATE purchase_orders SET status='received',updated_at=NOW() WHERE id=?")
+                   ->execute([$m[1]]);
+
+                $db->commit();
+                respond([
+                    'message' => 'Barang diterima! Inbound dibuat otomatis. Konfirmasi inbound untuk update stok.',
+                    'inbound_id' => $inboundId,
+                    'inbound_ref' => $ref
+                ]);
+            } catch (Exception $e) {
+                $db->rollBack();
+                respondError($e->getMessage(), 500);
+            }
             return;
         }
     }

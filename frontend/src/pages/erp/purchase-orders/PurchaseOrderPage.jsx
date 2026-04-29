@@ -1,35 +1,16 @@
 import { useState, useEffect } from 'react'
-import { ShoppingCart, Printer, Eye, FileText, ChevronDown } from 'lucide-react'
+import { ShoppingCart, Printer, Eye, FileText, CheckCircle, XCircle, Clock, Package, Truck } from 'lucide-react'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
 import { PageShell, PageHeader, SearchBar, DataTable, StatusBadge, Modal, FormField, Input, Select, Textarea } from '@/components/ui'
 import { printPurchaseOrder } from '@/utils/printUtils'
 
-const STATUS_PO = { draft: 'warning', sent: 'info', partial: 'warning', complete: 'success', cancelled: 'danger' }
-
-// Alur status PO: draft → sent → complete / cancelled
-const STATUS_TRANSITIONS = {
-  draft:     ['sent', 'cancelled'],
-  sent:      ['complete', 'cancelled'],
-  partial:   ['complete', 'cancelled'],
-  complete:  [],
-  cancelled: [],
-}
-const STATUS_LABEL = { draft:'Draft', sent:'Terkirim ke Supplier', partial:'Parsial', complete:'Selesai', cancelled:'Dibatalkan' }
-const STATUS_COLOR = {
-  draft:     'bg-yellow-500/10 border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20',
-  sent:      'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20',
-  partial:   'bg-orange-500/10 border-orange-500/20 text-orange-400 hover:bg-orange-500/20',
-  complete:  'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20',
-  cancelled: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20',
-}
-
-function DR({ label, value }) {
+function DR({ label, value, highlight }) {
   return (
     <div className="flex justify-between items-start py-2 border-b border-white/[0.05] last:border-0">
       <span className="text-slate-500 text-xs">{label}</span>
-      <span className="text-sm font-medium text-white text-right max-w-[60%]">{value ?? '—'}</span>
+      <span className={`text-sm font-medium text-right max-w-[60%] ${highlight ? 'text-gold-400' : 'text-white'}`}>{value ?? '—'}</span>
     </div>
   )
 }
@@ -38,27 +19,15 @@ const COLS = [
   { key: 'po_number', label: 'No. PO', render: v => <span className="text-purple-400 font-mono text-sm">{v}</span> },
   { key: 'order_date', label: 'Tanggal', render: v => v && v !== '0000-00-00' ? new Date(v).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '—' },
   { key: 'supplier_name', label: 'Supplier', render: v => v || '—' },
+  { key: 'item_count', label: 'Item', render: v => <span className="text-slate-300">{v || 0} item</span> },
   { key: 'total_amount', label: 'Total', render: v => <span className="text-white font-semibold">Rp {Number(v||0).toLocaleString('id-ID')}</span> },
   { key: 'status', label: 'Status', render: v => <StatusBadge value={v} /> },
-  { key: 'id', label: 'Print', render: (id, row) => (
-    <button onClick={async () => {
-      try {
-        const res = await api.get(`/erp/purchase-orders/${id}`)
-        const full = res.data || res
-        if (full.items) full.items = full.items.map(i => ({ ...i, name: i.item_name || i.name, qty: i.qty_ordered || i.qty }))
-        printPurchaseOrder(full)
-      } catch { toast.error('Gagal load detail PO') }
-    }}
-      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-slate-400 hover:text-white text-xs">
-      <Printer size={11} /> Print
-    </button>
-  )},
 ]
 
 export default function PurchaseOrderPage() {
   const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
   const canCreate = ['admin', 'finance_procurement'].includes(user?.role)
-  const canUpdateStatus = ['admin', 'finance_procurement'].includes(user?.role)
   const [data, setData]       = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [items, setItems]     = useState([])
@@ -67,8 +36,10 @@ export default function PurchaseOrderPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
   const [detailModal, setDetailModal] = useState(false)
+  const [rejectModal, setRejectModal] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
   const [form, setForm]       = useState({ supplier_id:'', warehouse_id:'', tax_rate:11, notes:'' })
   const [lines, setLines]     = useState([{ item_id:'', qty:1, unit_price:0 }])
 
@@ -96,25 +67,21 @@ export default function PurchaseOrderPage() {
   const submit = async () => {
     try {
       await api.post('/erp/purchase-orders', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty:+l.qty, unit_price:+l.unit_price })) })
-      toast.success('Purchase Order dibuat!'); setModal(false); load()
+      toast.success('Purchase Order dibuat! Menunggu approval Admin.')
+      setModal(false); setForm({ supplier_id:'', warehouse_id:'', tax_rate:11, notes:'' }); setLines([{ item_id:'', qty:1, unit_price:0 }]); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
   }
 
-  const [detailLoading, setDetailLoading] = useState(false)
-
   const openView = async (row) => {
     setDetailModal(true)
-    setSelected(row) // tampilkan dulu data ringkas
+    setSelected(row)
     setDetailLoading(true)
     try {
       const res = await api.get(`/erp/purchase-orders/${row.id}`)
       const full = res.data || res
-      // normalize field names untuk printPurchaseOrder
       if (full.items) {
         full.items = full.items.map(i => ({
-          ...i,
-          name: i.item_name || i.name,
-          qty:  i.qty_ordered || i.qty,
+          ...i, name: i.item_name || i.name, qty: i.qty_ordered || i.qty,
         }))
       }
       setSelected(full)
@@ -122,32 +89,56 @@ export default function PurchaseOrderPage() {
     finally { setDetailLoading(false) }
   }
 
-  const updateStatus = async (newStatus) => {
+  const handleApprove = async () => {
     if (!selected) return
-    setStatusLoading(true)
+    if (!confirm('Setujui PO ini? Supplier akan diproses untuk pengiriman.')) return
     try {
-      await api.put(`/erp/purchase-orders/${selected.id}/status`, { status: newStatus })
-      toast.success(`Status PO diubah ke: ${STATUS_LABEL[newStatus]}`)
-      setSelected({ ...selected, status: newStatus })
-      load()
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Gagal ubah status')
-    } finally {
-      setStatusLoading(false)
-    }
+      await api.put(`/erp/purchase-orders/${selected.id}/approve`, {})
+      toast.success('PO disetujui! Menunggu barang dari supplier.')
+      setSelected({ ...selected, status: 'approved' }); load()
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal approve') }
   }
 
-  const nextStatuses = selected ? (STATUS_TRANSITIONS[selected.status] || []) : []
+  const handleReject = async () => {
+    try {
+      await api.put(`/erp/purchase-orders/${selected.id}/reject`, { reason: rejectReason })
+      toast.success('PO ditolak')
+      setRejectModal(false); setDetailModal(false); setRejectReason(''); load()
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal reject') }
+  }
+
+  const handleReceive = async () => {
+    if (!selected) return
+    if (!confirm('Konfirmasi barang dari supplier sudah diterima?\nInbound akan dibuat otomatis.')) return
+    try {
+      const res = await api.post(`/erp/purchase-orders/${selected.id}/receive`, {})
+      const data = res.data || res
+      toast.success(`Barang diterima! Inbound ${data.inbound_ref || ''} dibuat. Konfirmasi inbound untuk update stok.`)
+      setSelected({ ...selected, status: 'received' }); load()
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal terima barang') }
+  }
+
+  const pendingCount = data.filter(d => d.status === 'draft').length
 
   return (
     <PageShell>
-      <PageHeader icon={ShoppingCart} title="Purchase Order" subtitle="Kelola pembelian ke supplier" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat PO" />
+      <PageHeader icon={ShoppingCart} title="Purchase Order" subtitle="Kelola pembelian ke supplier"
+        onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat PO" />
+
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari No. PO atau supplier..." /></div>
+
+      {isAdmin && pendingCount > 0 && (
+        <div className="flex items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+          <Clock size={14} className="text-yellow-400" />
+          <span className="text-yellow-400 text-sm font-medium">{pendingCount} PO menunggu approval Anda</span>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada Purchase Order" />
       </div>
 
-      {/* Detail + Status Modal */}
+      {/* Detail Modal */}
       <Modal open={detailModal} onClose={() => setDetailModal(false)} title={
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/20 flex items-center justify-center">
@@ -158,11 +149,42 @@ export default function PurchaseOrderPage() {
             <div className="text-slate-500 text-xs">Purchase Order</div>
           </div>
         </div>
-      }>
+      } size="lg">
         {detailLoading ? (
           <div className="py-10 text-center text-slate-400 text-sm animate-pulse">Memuat detail PO...</div>
         ) : selected && (
           <div className="space-y-4">
+            {/* Status Banners */}
+            {selected.status === 'draft' && (
+              <div className="flex items-center gap-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-4 py-2.5">
+                <Clock size={14} className="text-yellow-400" />
+                <span className="text-yellow-400 text-sm font-medium">⏳ Menunggu approval Administrator</span>
+              </div>
+            )}
+            {selected.status === 'approved' && (
+              <div className="flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2.5">
+                <CheckCircle size={14} className="text-blue-400" />
+                <span className="text-blue-400 text-sm font-medium">✅ PO Disetujui — Menunggu barang dari supplier</span>
+              </div>
+            )}
+            {selected.status === 'received' && (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5">
+                <Package size={14} className="text-emerald-400" />
+                <span className="text-emerald-400 text-sm font-medium">📦 Barang diterima — Konfirmasi Inbound untuk update stok</span>
+              </div>
+            )}
+            {selected.status === 'cancelled' && (
+              <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <XCircle size={14} className="text-red-400" />
+                  <span className="text-red-400 text-sm font-medium">PO Ditolak / Dibatalkan</span>
+                </div>
+                {selected.reject_reason && (
+                  <p className="text-red-400/70 text-xs mt-1 ml-6">Alasan: {selected.reject_reason}</p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -171,47 +193,45 @@ export default function PurchaseOrderPage() {
                 </div>
                 <DR label="No. PO" value={<span className="text-purple-400 font-mono">{selected.po_number}</span>} />
                 <DR label="Tanggal" value={selected.order_date && selected.order_date !== '0000-00-00' ? new Date(selected.order_date).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '—'} />
-                <DR label="Supplier" value={selected.supplier_name || '—'} />
-                <DR label="Gudang" value={selected.warehouse_name || '—'} />
-                <DR label="Total" value={<span className="text-gold-400 font-bold">Rp {Number(selected.total_amount||0).toLocaleString('id-ID')}</span>} />
+                <DR label="Status" value={<StatusBadge value={selected.status} />} />
+                <DR label="Total" value={<span className="text-gold-400 font-bold">Rp {Number(selected.total_amount||0).toLocaleString('id-ID')}</span>} highlight />
               </div>
 
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <ChevronDown size={14} className="text-purple-400" />
-                  <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Status & Aksi</span>
+                  <Truck size={14} className="text-purple-400" />
+                  <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Detail</span>
                 </div>
-
-                {/* Status sekarang */}
-                <div className="mb-4">
-                  <p className="text-xs text-slate-500 mb-2">Status Sekarang</p>
-                  <span className={`inline-flex items-center px-3 py-1.5 rounded-lg border text-sm font-semibold ${STATUS_COLOR[selected.status] || ''}`}>
-                    {STATUS_LABEL[selected.status] || selected.status}
-                  </span>
-                </div>
-
-                {/* Ubah status */}
-                {canUpdateStatus && nextStatuses.length > 0 && (
-                  <div>
-                    <p className="text-xs text-slate-500 mb-2">Ubah Status ke:</p>
-                    <div className="flex flex-col gap-2">
-                      {nextStatuses.map(s => (
-                        <button key={s} onClick={() => updateStatus(s)} disabled={statusLoading}
-                          className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${STATUS_COLOR[s]} disabled:opacity-50`}>
-                          <span>{STATUS_LABEL[s]}</span>
-                          <ChevronDown size={13} className="opacity-60" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {(!canUpdateStatus || nextStatuses.length === 0) && (
-                  <p className="text-xs text-slate-600 italic mt-2">
-                    {nextStatuses.length === 0 ? 'Status final — tidak bisa diubah lagi' : 'Tidak ada izin ubah status'}
-                  </p>
-                )}
+                <DR label="Supplier" value={selected.supplier_name || '—'} />
+                <DR label="Gudang Tujuan" value={selected.warehouse_name || '—'} />
+                <DR label="Dibuat Oleh" value={selected.created_by_name || '—'} />
+                {selected.expected_date && <DR label="Estimasi Tiba" value={new Date(selected.expected_date).toLocaleDateString('id-ID')} />}
               </div>
             </div>
+
+            {/* Items Table */}
+            {selected.items && selected.items.length > 0 && (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Package size={14} className="text-purple-400" />
+                  <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Item PO</span>
+                </div>
+                <div className="space-y-1">
+                  {selected.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-white/[0.04] last:border-0">
+                      <div>
+                        <span className="text-sm text-white">{item.name || item.item_name || '—'}</span>
+                        <span className="text-xs text-slate-500 ml-2">{item.sku}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-gold-400">{item.qty || item.qty_ordered} {item.unit || 'pcs'}</span>
+                        <span className="text-xs text-slate-500 ml-2">@ Rp {Number(item.unit_price||0).toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {selected.notes && (
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
@@ -220,28 +240,76 @@ export default function PurchaseOrderPage() {
               </div>
             )}
 
-            <div className="flex justify-between items-center pt-2">
+            {/* Actions */}
+            <div className="flex justify-between gap-3 pt-2">
               <button onClick={() => printPurchaseOrder(selected)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.06] text-white hover:bg-white/[0.1] text-sm font-medium">
                 <Printer size={14} /> Print PO
               </button>
-              <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-semibold text-sm">Tutup</button>
+              <div className="flex gap-3">
+                {/* Admin: Approve / Reject draft PO */}
+                {isAdmin && selected.status === 'draft' && (
+                  <>
+                    <button onClick={() => { setRejectReason(''); setRejectModal(true) }}
+                      className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-medium text-sm transition-all flex items-center gap-2">
+                      <XCircle size={14} /> Tolak
+                    </button>
+                    <button onClick={handleApprove}
+                      className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-all flex items-center gap-2">
+                      <CheckCircle size={14} /> Approve PO
+                    </button>
+                  </>
+                )}
+                {/* Approved: Terima Barang */}
+                {selected.status === 'approved' && canCreate && (
+                  <button onClick={handleReceive}
+                    className="px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white font-semibold text-sm transition-all flex items-center gap-2">
+                    <Package size={14} /> Terima Barang
+                  </button>
+                )}
+                {/* Close button for other statuses */}
+                {(!isAdmin || selected.status !== 'draft') && selected.status !== 'approved' && (
+                  <button onClick={() => setDetailModal(false)} className="px-5 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-semibold text-sm">Tutup</button>
+                )}
+              </div>
             </div>
           </div>
         )}
       </Modal>
 
+      {/* Reject Modal */}
+      <Modal open={rejectModal} onClose={() => setRejectModal(false)} title="Tolak Purchase Order">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5">
+            <XCircle size={14} className="text-red-400" />
+            <span className="text-red-400 text-sm font-medium">PO {selected?.po_number} akan ditolak</span>
+          </div>
+          <FormField label="Alasan Penolakan" required>
+            <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Jelaskan alasan penolakan..." />
+          </FormField>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setRejectModal(false)} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-400 text-sm">Batal</button>
+            <button onClick={handleReject} disabled={!rejectReason.trim()} className="px-5 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-semibold text-sm disabled:opacity-50">Konfirmasi Tolak</button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Buat PO Modal */}
       <Modal open={modal} onClose={() => setModal(false)} title="Buat Purchase Order" size="xl">
         <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2.5">
+            <Clock size={14} className="text-blue-400" />
+            <span className="text-blue-400 text-sm">PO akan menunggu approval Administrator sebelum diproses ke supplier</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Supplier">
+            <FormField label="Supplier" required>
               <Select value={form.supplier_id} onChange={e => setForm({...form, supplier_id:e.target.value})}>
                 <option value="">Pilih supplier</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
             </FormField>
-            <FormField label="Gudang Tujuan">
+            <FormField label="Gudang Tujuan" required>
               <Select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id:e.target.value})}>
                 <option value="">Pilih gudang</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
