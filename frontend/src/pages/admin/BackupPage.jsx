@@ -15,7 +15,8 @@ export default function BackupPage() {
     setLoading(true)
     try {
       const res = await api.get('/backup/info')
-      setInfo(res?.data || res)
+      const d = res?.data || res
+      setInfo(d?.tables ? d : { tables: d?.tables || {}, total_records: d?.total_records || 0, server_time: d?.server_time })
     } catch (e) {
       toast.error('Gagal memuat info backup')
     } finally {
@@ -60,7 +61,7 @@ export default function BackupPage() {
   const tableIcons = {
     items: '📦', inbound_transactions: '⬇️', outbound_transactions: '⬆️',
     purchase_orders: '🛒', invoices: '📄', suppliers: '🏢',
-    warehouses: '🏭', stock_opname: '🔄', stock_transfers: '↔️',
+    warehouses: '🏭', stock_opnames: '🔄', stock_transfers: '↔️',
     delivery_orders: '🚚', returns: '🔙', requests: '📋',
     budgets: '💰', users: '👤', categories: '🏷️', units: '📐', departments: '🏛️',
   }
@@ -69,7 +70,7 @@ export default function BackupPage() {
     items: 'Item / Inventaris', inbound_transactions: 'Barang Masuk',
     outbound_transactions: 'Barang Keluar', purchase_orders: 'Purchase Order',
     invoices: 'Invoice', suppliers: 'Supplier', warehouses: 'Gudang',
-    stock_opname: 'Stock Opname', stock_transfers: 'Transfer Stok',
+    stock_opnames: 'Stock Opname', stock_transfers: 'Transfer Stok',
     delivery_orders: 'Surat Jalan', returns: 'Retur', requests: 'Permintaan (SPB)',
     budgets: 'Budget', users: 'Pengguna', categories: 'Kategori',
     units: 'Satuan', departments: 'Departemen',

@@ -17,7 +17,7 @@ function handleBackup($method, $uri, $user) {
             'invoices'              => "SELECT inv.id, inv.invoice_number, inv.status, inv.invoice_date, inv.due_date, inv.total_amount, inv.paid_amount, inv.notes, s.name AS supplier, po.po_number, u.name AS created_by, inv.created_at FROM invoices inv LEFT JOIN suppliers s ON s.id=inv.supplier_id LEFT JOIN purchase_orders po ON po.id=inv.po_id LEFT JOIN users u ON u.id=inv.created_by ORDER BY inv.created_at DESC",
             'suppliers'             => "SELECT id, code, name, contact, phone, email, address, city, payment_terms, is_pkp, npwp, bank_account, created_at FROM suppliers ORDER BY name",
             'warehouses'            => "SELECT id, code, name, address, city, phone, pic_name, pic_phone, is_active, created_at FROM warehouses ORDER BY name",
-            'stock_opname'          => "SELECT o.id, o.ref_number, o.opname_date, o.status, o.notes, w.name AS warehouse, u.name AS created_by, o.created_at FROM stock_opname o LEFT JOIN warehouses w ON w.id=o.warehouse_id LEFT JOIN users u ON u.id=o.created_by ORDER BY o.created_at DESC",
+            'stock_opnames'         => "SELECT o.id, o.ref_number, o.opname_date, o.status, o.notes, w.name AS warehouse, u.name AS created_by, o.created_at FROM stock_opnames o LEFT JOIN warehouses w ON w.id=o.warehouse_id LEFT JOIN users u ON u.id=o.created_by ORDER BY o.created_at DESC",
             'stock_transfers'       => "SELECT t.id, t.ref_number, t.transfer_date, t.status, t.notes, wf.name AS from_warehouse, wt.name AS to_warehouse, u.name AS created_by, t.created_at FROM stock_transfers t LEFT JOIN warehouses wf ON wf.id=t.from_warehouse_id LEFT JOIN warehouses wt ON wt.id=t.to_warehouse_id LEFT JOIN users u ON u.id=t.created_by ORDER BY t.created_at DESC",
             'delivery_orders'       => "SELECT d.id, d.ref_number, d.delivery_date, d.destination, d.status, d.notes, w.name AS warehouse, u.name AS created_by, d.created_at FROM delivery_orders d LEFT JOIN warehouses w ON w.id=d.warehouse_id LEFT JOIN users u ON u.id=d.created_by ORDER BY d.created_at DESC",
             'returns'               => "SELECT r.id, r.ref_number, r.type, r.return_date, r.reason, r.status, s.name AS supplier, w.name AS warehouse, u.name AS created_by, r.created_at FROM returns r LEFT JOIN suppliers s ON s.id=r.supplier_id LEFT JOIN warehouses w ON w.id=r.warehouse_id LEFT JOIN users u ON u.id=r.created_by ORDER BY r.created_at DESC",
@@ -80,7 +80,7 @@ function handleBackup($method, $uri, $user) {
     // GET /backup/info — Get backup summary (table counts)
     if ($method === 'GET' && $uri === '/backup/info') {
         $counts = [];
-        $tablesToCount = ['items','inbound_transactions','outbound_transactions','purchase_orders','invoices','suppliers','warehouses','stock_opname','stock_transfers','delivery_orders','returns','requests','budgets','users','categories','units','departments'];
+        $tablesToCount = ['items','inbound_transactions','outbound_transactions','purchase_orders','invoices','suppliers','warehouses','stock_opnames','stock_transfers','delivery_orders','returns','requests','budgets','users','categories','units','departments'];
 
         foreach ($tablesToCount as $t) {
             try {
