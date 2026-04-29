@@ -93,8 +93,12 @@ export default function PurchaseOrderPage() {
     if (!selected) return
     if (!confirm('Setujui PO ini? Supplier akan diproses untuk pengiriman.')) return
     try {
-      await api.put(`/erp/purchase-orders/${selected.id}/approve`, {})
-      toast.success('PO disetujui! Menunggu barang dari supplier.')
+      const res = await api.put(`/erp/purchase-orders/${selected.id}/approve`, {})
+      const data = res.data || res
+      toast.success(data.invoice_number
+        ? `PO disetujui! Invoice ${data.invoice_number} otomatis dibuat.`
+        : 'PO disetujui! Invoice otomatis dibuat.'
+      )
       setSelected({ ...selected, status: 'approved' }); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal approve') }
   }

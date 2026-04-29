@@ -103,18 +103,41 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             return;
         }
 
-        // PUT /purchase-orders/:id/approve — Admin approve PO
+        // PUT /purchase-orders/:id/approve — Admin approve PO + auto-create Invoice
         if ($method === 'PUT' && preg_match('#^/purchase-orders/([^/]+)/approve$#', $sub, $m)) {
             requireRole($user, 'admin');
-            $chk = $db->prepare("SELECT id,status FROM purchase_orders WHERE id=?");
+            $chk = $db->prepare("SELECT * FROM purchase_orders WHERE id=?");
             $chk->execute([$m[1]]);
             $po = $chk->fetch();
             if (!$po) respondError('PO tidak ditemukan', 404);
             if ($po['status'] !== 'draft') respondError('Hanya PO draft yang bisa di-approve', 400);
 
-            $db->prepare("UPDATE purchase_orders SET status='approved',approved_by=?,updated_at=NOW() WHERE id=?")
-               ->execute([$user['sub'], $m[1]]);
-            respond(['message'=>'PO disetujui. Silakan terima barang saat supplier mengirim.']);
+            $db->beginTransaction();
+            try {
+                // Update PO status
+                $db->prepare("UPDATE purchase_orders SET status='approved',approved_by=?,updated_at=NOW() WHERE id=?")
+                   ->execute([$user['sub'], $m[1]]);
+
+                // Auto-create Invoice from PO
+                $invId = generateUUID();
+                $invNum = generateRef('INV');
+                $paymentTerms = (int)($po['payment_terms'] ?? 30);
+                $dueDate = date('Y-m-d', strtotime("+{$paymentTerms} days"));
+
+                $db->prepare("INSERT INTO invoices(id,invoice_number,po_id,supplier_id,invoice_date,due_date,total_amount,amount_paid,status,notes,created_by)
+                    VALUES(?,?,?,?,NOW(),?,?,0,'unpaid',?,?)")
+                   ->execute([$invId, $invNum, $m[1], $po['supplier_id'], $dueDate, $po['total_amount'], 'Auto-generated dari PO '.$po['po_number'], $user['sub']]);
+
+                $db->commit();
+                respond([
+                    'message' => 'PO disetujui & Invoice otomatis dibuat!',
+                    'invoice_id' => $invId,
+                    'invoice_number' => $invNum
+                ]);
+            } catch (Exception $e) {
+                $db->rollBack();
+                respondError($e->getMessage(), 500);
+            }
             return;
         }
 
