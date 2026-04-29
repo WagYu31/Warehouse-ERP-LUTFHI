@@ -9,9 +9,9 @@ function getDB(): PDO {
 
     $host   = getenv('DB_HOST') ?: 'localhost';
     $port   = getenv('DB_PORT') ?: '3306';
-    $dbname = getenv('DB_NAME') ?: 'pitagic_wms_lutfh';
-    $user   = getenv('DB_USER') ?: 'pitagic_wms_user';
-    $pass   = getenv('DB_PASSWORD') ?: 'WmsLuth@2026#Secure';
+    $dbname = getenv('DB_NAME') ?: 'pitiagic_wms';
+    $user   = getenv('DB_USER') ?: 'pitiagic_wms';
+    $pass   = getenv('DB_PASSWORD') ?: 'Q=T+(E(}CwmV0mIZ';
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 
