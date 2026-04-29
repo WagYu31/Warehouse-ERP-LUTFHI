@@ -156,7 +156,7 @@ export default function InvoicePage() {
 
   return (
     <PageShell>
-      <PageHeader icon={FileText} title="Invoice" subtitle="Kelola tagihan dari supplier" onRefresh={load} onAdd={canCreate ? () => setModal(true) : undefined} addLabel="Buat Invoice" />
+      <PageHeader icon={FileText} title="Invoice" subtitle="Kelola tagihan dari supplier — otomatis dibuat saat PO di-approve" onRefresh={load} />
       <div className="mb-4"><SearchBar value={search} onChange={setSearch} placeholder="Cari no. invoice..." /></div>
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <DataTable columns={COLS} data={data} loading={loading} onView={openView} emptyMessage="Belum ada invoice" />
@@ -236,29 +236,7 @@ export default function InvoicePage() {
         )}
       </Modal>
 
-      {/* Buat Invoice Modal */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Buat Invoice Baru">
-        <div className="space-y-4">
-          <FormField label="No. Invoice" required><Input value={form.invoice_number} onChange={e => setForm({...form, invoice_number:e.target.value})} placeholder="INV-2026-001" /></FormField>
-          <FormField label="Purchase Order"><Select value={form.po_id} onChange={e => setForm({...form, po_id:e.target.value})}>
-            <option value="">Pilih PO (opsional)</option>
-            {pos.map(p => <option key={p.id} value={p.id}>{p.po_number}</option>)}
-          </Select></FormField>
-          <FormField label="Supplier"><Select value={form.supplier_id} onChange={e => setForm({...form, supplier_id:e.target.value})}>
-            <option value="">Pilih supplier</option>
-            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </Select></FormField>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Tgl. Invoice"><Input type="date" value={form.invoice_date} onChange={e => setForm({...form, invoice_date:e.target.value})} /></FormField>
-            <FormField label="Jatuh Tempo"><Input type="date" value={form.due_date} onChange={e => setForm({...form, due_date:e.target.value})} /></FormField>
-          </div>
-          <FormField label="Total (Rp)"><Input type="number" value={form.total_amount} onChange={e => setForm({...form, total_amount:+e.target.value})} /></FormField>
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setModal(false)} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-400 text-sm">Batal</button>
-            <button onClick={submit} className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm">Simpan</button>
-          </div>
-        </div>
-      </Modal>
+      {/* Info: Invoice otomatis dibuat */}
 
       {/* Catat Pembayaran Modal */}
       <Modal open={payModal} onClose={() => setPayModal(false)} title="Catat Pembayaran Invoice">
