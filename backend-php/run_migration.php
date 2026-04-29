@@ -1,9 +1,16 @@
 <?php
+// Web-accessible migration - access via browser: https://wms.alumni590.com/api/run_migration.php
+header('Content-Type: text/plain');
 require __DIR__ . '/config/database.php';
-$db = getDB();
-echo "Connected to database OK\n";
 
-// Run migration
+try {
+    $db = getDB();
+    echo "✅ Connected to database\n\n";
+} catch (Exception $e) {
+    echo "❌ Connection failed: " . $e->getMessage() . "\n";
+    exit;
+}
+
 $sqls = [
     "ALTER TABLE stock_transfers ADD COLUMN approved_by VARCHAR(36) DEFAULT NULL",
     "ALTER TABLE stock_transfers ADD COLUMN reject_reason TEXT DEFAULT NULL",
@@ -17,12 +24,13 @@ $sqls = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 ];
 
-foreach ($sqls as $sql) {
+foreach ($sqls as $i => $sql) {
     try {
         $db->exec($sql);
-        echo "OK: " . substr($sql, 0, 70) . "\n";
+        echo "✅ Query " . ($i+1) . " OK\n";
     } catch (Exception $e) {
-        echo "SKIP: " . $e->getMessage() . "\n";
+        echo "⚠️ Query " . ($i+1) . " SKIP: " . $e->getMessage() . "\n";
     }
 }
-echo "Migration complete!\n";
+
+echo "\n🎉 Migration complete!\n";
