@@ -3,22 +3,15 @@ header('Content-Type: text/plain');
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "=== DB Migration Debug ===\n\n";
-
 $host   = 'localhost';
-$port   = '3306';
-$dbname = 'pitiagic_wms';
-$user   = 'pitiagic_wms';
-$pass   = 'Q=T+(E(}CwmV0mIZ';
+$dbname = 'pitagic_wms_lutfh';
+$user   = 'pitagic_wms_user';
+$pass   = 'WmsLuth@2026#Secure';
 
-echo "Host: $host\nDB: $dbname\nUser: $user\nPass: $pass\n\n";
-
-$dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
+$dsn = "mysql:host={$host};port=3306;dbname={$dbname};charset=utf8mb4";
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
+    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
     echo "CONNECTED OK!\n\n";
 
     $sqls = [
@@ -42,8 +35,7 @@ try {
             echo "SKIP: " . $e->getMessage() . "\n";
         }
     }
-    echo "\nDone!\n";
+    echo "\nMigration complete!\n";
 } catch (PDOException $e) {
-    echo "CONNECTION ERROR: " . $e->getMessage() . "\n";
-    echo "Code: " . $e->getCode() . "\n";
+    echo "ERROR: " . $e->getMessage() . "\n";
 }
