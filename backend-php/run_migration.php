@@ -4,8 +4,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 $host   = 'localhost';
-$dbname = 'pitagic_wms_lutfh';
-$user   = 'pitagic_wms_user';
+$dbname = 'pitiagic_wms_lutfh';
+$user   = 'pitiagic_wms_user';
 $pass   = 'WmsLuth@2026#Secure';
 
 $dsn = "mysql:host={$host};port=3306;dbname={$dbname};charset=utf8mb4";
