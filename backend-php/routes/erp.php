@@ -76,10 +76,11 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
 
         if ($method === 'GET' && preg_match('#^/purchase-orders/([^/]+)$#', $sub, $m)) {
             $stmt = $db->prepare("
-                SELECT po.*, s.name AS supplier_name, u.name AS created_by_name
+                SELECT po.*, s.name AS supplier_name, u.name AS created_by_name, w.name AS warehouse_name
                 FROM purchase_orders po
                 LEFT JOIN suppliers s ON s.id=po.supplier_id
                 LEFT JOIN users u ON u.id=po.created_by
+                LEFT JOIN warehouses w ON w.id=po.warehouse_id
                 WHERE po.id=?
             ");
             $stmt->execute([$m[1]]);
