@@ -15,6 +15,7 @@ const COLS = [
 
 export default function StockTransferPage() {
   const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
   const canCreate = ['admin', 'staff'].includes(user?.role)
   const [data, setData]           = useState([])
   const [warehouses, setWarehouses] = useState([])
@@ -26,6 +27,11 @@ export default function StockTransferPage() {
   const [selected, setSelected]   = useState(null)
   const [form, setForm]           = useState({ from_warehouse_id: '', to_warehouse_id: '', transfer_date: new Date().toISOString().slice(0,10), notes: '' })
   const [lines, setLines]         = useState([{ item_id: '', qty: 1 }])
+
+  // Gudang milik user (dari user.warehouses yang di-set saat login)
+  const myWarehouses = user?.warehouses || []
+  // Untuk "Dari Gudang": Staff hanya bisa dari gudang mereka, Admin bisa semua
+  const fromWarehouseOptions = isAdmin ? warehouses : warehouses.filter(w => myWarehouses.some(mw => mw.id === w.id))
 
   const load = async () => {
     setLoading(true)
@@ -42,6 +48,13 @@ export default function StockTransferPage() {
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+
+  // Auto-set "Dari Gudang" jika user hanya punya 1 gudang
+  useEffect(() => {
+    if (!isAdmin && fromWarehouseOptions.length === 1 && !form.from_warehouse_id) {
+      setForm(f => ({ ...f, from_warehouse_id: fromWarehouseOptions[0].id }))
+    }
+  }, [fromWarehouseOptions, isAdmin])
 
   const addLine = () => setLines([...lines, { item_id: '', qty: 1 }])
   const rmLine  = i => setLines(lines.filter((_, idx) => idx !== i))
@@ -138,10 +151,16 @@ export default function StockTransferPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Dari Gudang" required>
-              <Select value={form.from_warehouse_id} onChange={e => { setForm({...form, from_warehouse_id: e.target.value}); setLines([{item_id:'',qty:1}]) }}>
-                <option value="">Pilih gudang asal</option>
-                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} — {w.city}</option>)}
-              </Select>
+              {!isAdmin && fromWarehouseOptions.length === 1 ? (
+                <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm">
+                  {fromWarehouseOptions[0].name} — {fromWarehouseOptions[0].city || ''}
+                </div>
+              ) : (
+                <Select value={form.from_warehouse_id} onChange={e => { setForm({...form, from_warehouse_id: e.target.value}); setLines([{item_id:'',qty:1}]) }}>
+                  <option value="">Pilih gudang asal</option>
+                  {fromWarehouseOptions.map(w => <option key={w.id} value={w.id}>{w.name} — {w.city}</option>)}
+                </Select>
+              )}
             </FormField>
             <FormField label="Ke Gudang" required>
               <Select value={form.to_warehouse_id} onChange={e => setForm({...form, to_warehouse_id: e.target.value})}>
