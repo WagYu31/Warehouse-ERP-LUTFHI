@@ -65,8 +65,12 @@ export default function PurchaseOrderPage() {
   const total    = subtotal + tax
 
   const submit = async () => {
+    if (!form.supplier_id) { toast.error('Pilih supplier dulu!'); return }
+    if (!form.warehouse_id) { toast.error('Pilih gudang tujuan dulu!'); return }
+    const validLines = lines.filter(l => l.item_id && +l.qty > 0)
+    if (!validLines.length) { toast.error('Minimal 1 item dengan qty valid'); return }
     try {
-      await api.post('/erp/purchase-orders', { ...form, items: lines.filter(l => l.item_id).map(l => ({ item_id:l.item_id, qty:+l.qty, unit_price:+l.unit_price })) })
+      await api.post('/erp/purchase-orders', { ...form, items: validLines.map(l => ({ item_id:l.item_id, qty:+l.qty, unit_price:+l.unit_price })) })
       toast.success('Purchase Order dibuat! Menunggu approval Admin.')
       setModal(false); setForm({ supplier_id:'', warehouse_id:'', tax_rate:11, notes:'' }); setLines([{ item_id:'', qty:1, unit_price:0 }]); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal menyimpan') }
