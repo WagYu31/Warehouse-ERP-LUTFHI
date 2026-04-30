@@ -91,54 +91,171 @@ function handleMaster(string $method, string $uri, array $user, array &$params):
         return;
     }
 
-    // ── CATEGORIES ───────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════
+    //  CATEGORIES — Production-grade with soft delete & search
+    // ══════════════════════════════════════════════════════════
     if (strpos($uri, '/categories') === 0) {
+        // GET /categories — list with optional search & is_active filter
         if ($method === 'GET' && $uri === '/categories') {
-            $stmt = $db->query("SELECT id,name,description,created_at FROM categories ORDER BY name");
+            $search = $_GET['search'] ?? '';
+            $active = $_GET['is_active'] ?? null;
+
+            $where = [];
+            $bind  = [];
+            if ($search) {
+                $where[] = "(name LIKE ? OR description LIKE ?)";
+                $bind[] = "%$search%";
+                $bind[] = "%$search%";
+            }
+            if ($active !== null && $active !== '') {
+                $where[] = "is_active = ?";
+                $bind[] = (int)$active;
+            }
+            $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+            $stmt = $db->prepare("SELECT id,name,description,is_active,created_at,updated_at FROM categories $whereSQL ORDER BY name");
+            $stmt->execute($bind);
             respondList($stmt->fetchAll());
+
+        // POST /categories — create new category
         } elseif ($method === 'POST' && $uri === '/categories') {
             requireRole($user, 'admin');
             $b = requireBody(); requireFields($b, ['name']);
+
+            // Check duplicate name
+            $dup = $db->prepare("SELECT id FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1");
+            $dup->execute([$b['name']]);
+            if ($dup->fetch()) respondError('Kategori dengan nama tersebut sudah ada', 409);
+
             $id = generateUUID();
-            $db->prepare("INSERT INTO categories(id,name,description) VALUES(?,?,?)")
-               ->execute([$id,$b['name'],$b['description']??null]);
-            respond(['id'=>$id]);
+            $db->prepare("INSERT INTO categories(id,name,description,is_active) VALUES(?,?,?,1)")
+               ->execute([$id, $b['name'], $b['description']??null]);
+            respondCreated(['id'=>$id, 'message'=>'Kategori berhasil ditambahkan']);
+
+        // PUT /categories/:id — update category
         } elseif ($method === 'PUT' && preg_match('#^/categories/([^/]+)$#',$uri,$m)) {
             requireRole($user, 'admin');
             $b = requireBody();
-            $db->prepare("UPDATE categories SET name=?,description=? WHERE id=?")
+
+            // Check duplicate name (exclude self)
+            if (isset($b['name'])) {
+                $dup = $db->prepare("SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND id != ? LIMIT 1");
+                $dup->execute([$b['name'], $m[1]]);
+                if ($dup->fetch()) respondError('Kategori dengan nama tersebut sudah ada', 409);
+            }
+
+            $db->prepare("UPDATE categories SET name=?,description=?,updated_at=NOW() WHERE id=?")
                ->execute([$b['name'],$b['description']??null,$m[1]]);
-            respond(['message'=>'Updated']);
+            respond(['message'=>'Kategori berhasil diperbarui']);
+
+        // PUT /categories/:id/toggle — soft delete (toggle active/inactive)
+        } elseif ($method === 'PUT' && preg_match('#^/categories/([^/]+)/toggle$#',$uri,$m)) {
+            requireRole($user, 'admin');
+            $db->prepare("UPDATE categories SET is_active = NOT is_active, updated_at=NOW() WHERE id=?")
+               ->execute([$m[1]]);
+            respond(['message'=>'Status kategori diperbarui']);
+
+        // DELETE /categories/:id — hard delete (only if not used by any item)
         } elseif ($method === 'DELETE' && preg_match('#^/categories/([^/]+)$#',$uri,$m)) {
             requireRole($user, 'admin');
+
+            // Check if used by items
+            $used = $db->prepare("SELECT COUNT(*) FROM items WHERE category_id = ?");
+            $used->execute([$m[1]]);
+            if ((int)$used->fetchColumn() > 0) {
+                respondError('Kategori masih digunakan oleh item. Nonaktifkan saja jika tidak diperlukan lagi.', 409);
+            }
+
             $db->prepare("DELETE FROM categories WHERE id=?")->execute([$m[1]]);
-            respond(['message'=>'Deleted']);
+            respond(['message'=>'Kategori berhasil dihapus']);
         }
         return;
     }
 
-    // ── UNITS ────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════
+    //  UNITS — Production-grade with soft delete, auto-abbr
+    // ══════════════════════════════════════════════════════════
     if (strpos($uri, '/units') === 0) {
+        // GET /units — list with optional search & is_active filter
         if ($method === 'GET' && $uri === '/units') {
-            $stmt = $db->query("SELECT id,name,abbreviation,created_at FROM units ORDER BY name");
+            $search = $_GET['search'] ?? '';
+            $active = $_GET['is_active'] ?? null;
+
+            $where = [];
+            $bind  = [];
+            if ($search) {
+                $where[] = "(name LIKE ? OR abbreviation LIKE ?)";
+                $bind[] = "%$search%";
+                $bind[] = "%$search%";
+            }
+            if ($active !== null && $active !== '') {
+                $where[] = "is_active = ?";
+                $bind[] = (int)$active;
+            }
+            $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+            $stmt = $db->prepare("SELECT id,name,abbreviation,is_active,created_at,updated_at FROM units $whereSQL ORDER BY name");
+            $stmt->execute($bind);
             respondList($stmt->fetchAll());
+
+        // POST /units — create new unit
         } elseif ($method === 'POST' && $uri === '/units') {
             requireRole($user, 'admin');
             $b = requireBody(); requireFields($b, ['name']);
             $abbr = $b['abbreviation'] ?? mb_substr($b['name'], 0, 3);
+
+            // Check duplicate name
+            $dup = $db->prepare("SELECT id FROM units WHERE LOWER(name) = LOWER(?) LIMIT 1");
+            $dup->execute([$b['name']]);
+            if ($dup->fetch()) respondError('Satuan dengan nama tersebut sudah ada', 409);
+
+            // Check duplicate abbreviation
+            $dupA = $db->prepare("SELECT id FROM units WHERE LOWER(abbreviation) = LOWER(?) LIMIT 1");
+            $dupA->execute([$abbr]);
+            if ($dupA->fetch()) respondError("Singkatan '$abbr' sudah dipakai oleh satuan lain", 409);
+
             $id = generateUUID();
-            $db->prepare("INSERT INTO units(id,name,abbreviation) VALUES(?,?,?)")
-               ->execute([$id,$b['name'],$abbr]);
-            respond(['id'=>$id]);
+            $db->prepare("INSERT INTO units(id,name,abbreviation,is_active) VALUES(?,?,?,1)")
+               ->execute([$id, $b['name'], $abbr]);
+            respondCreated(['id'=>$id, 'message'=>'Satuan berhasil ditambahkan']);
+
+        // PUT /units/:id — update unit
         } elseif ($method === 'PUT' && preg_match('#^/units/([^/]+)$#',$uri,$m)) {
             requireRole($user, 'admin');
             $b = requireBody();
-            $db->prepare("UPDATE units SET name=?,abbreviation=? WHERE id=?")->execute([$b['name'],$b['abbreviation'],$m[1]]);
-            respond(['message'=>'Updated']);
+
+            // Check duplicate (exclude self)
+            if (isset($b['name'])) {
+                $dup = $db->prepare("SELECT id FROM units WHERE LOWER(name) = LOWER(?) AND id != ? LIMIT 1");
+                $dup->execute([$b['name'], $m[1]]);
+                if ($dup->fetch()) respondError('Satuan dengan nama tersebut sudah ada', 409);
+            }
+
+            $abbr = $b['abbreviation'] ?? mb_substr($b['name'] ?? '', 0, 3);
+            $db->prepare("UPDATE units SET name=?,abbreviation=?,updated_at=NOW() WHERE id=?")
+               ->execute([$b['name'],$abbr,$m[1]]);
+            respond(['message'=>'Satuan berhasil diperbarui']);
+
+        // PUT /units/:id/toggle — soft delete (toggle active/inactive)
+        } elseif ($method === 'PUT' && preg_match('#^/units/([^/]+)/toggle$#',$uri,$m)) {
+            requireRole($user, 'admin');
+            $db->prepare("UPDATE units SET is_active = NOT is_active, updated_at=NOW() WHERE id=?")
+               ->execute([$m[1]]);
+            respond(['message'=>'Status satuan diperbarui']);
+
+        // DELETE /units/:id — hard delete (only if not used)
         } elseif ($method === 'DELETE' && preg_match('#^/units/([^/]+)$#',$uri,$m)) {
             requireRole($user, 'admin');
+
+            // Check if used by items
+            $used = $db->prepare("SELECT COUNT(*) FROM items WHERE unit_id = ?");
+            $used->execute([$m[1]]);
+            if ((int)$used->fetchColumn() > 0) {
+                respondError('Satuan masih digunakan oleh item. Nonaktifkan saja jika tidak diperlukan lagi.', 409);
+            }
+
             $db->prepare("DELETE FROM units WHERE id=?")->execute([$m[1]]);
-            respond(['message'=>'Deleted']);
+            respond(['message'=>'Satuan berhasil dihapus']);
         }
         return;
     }
