@@ -206,8 +206,7 @@ function MasterCard({
       </div>
 
       {/* Add / Edit Modal */}
-      {modalOpen && (
-        <Modal title={`${modalMode === 'add' ? 'Tambah' : 'Edit'} ${title}`}
+      <Modal open={modalOpen} title={`${modalMode === 'add' ? 'Tambah' : 'Edit'} ${title}`}
           onClose={() => setModalOpen(false)} size="sm">
           <div className="space-y-4">
             <FormField label="Nama" required>
@@ -226,10 +225,10 @@ function MasterCard({
             )}
 
             {showAbbreviation && (
-              <FormField label="Singkatan" hint={!form.abbreviation ? `Auto: ${(form.name || '').substring(0,3) || '...' }` : ''}>
+              <FormField label={`Singkatan ${!form.abbreviation ? `(Auto: ${(form.name || '').substring(0,3) || '...'})` : ''}`}>
                 <Input value={form.abbreviation}
                   onChange={e => setForm({...form, abbreviation: e.target.value})}
-                  placeholder={`Otomatis dari nama jika kosong`}
+                  placeholder="Otomatis dari nama jika kosong"
                   maxLength={10} />
               </FormField>
             )}
@@ -258,7 +257,6 @@ function MasterCard({
             </div>
           </div>
         </Modal>
-      )}
     </>
   )
 }
