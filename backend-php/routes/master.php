@@ -124,10 +124,11 @@ function handleMaster(string $method, string $uri, array $user, array &$params):
             respondList($stmt->fetchAll());
         } elseif ($method === 'POST' && $uri === '/units') {
             requireRole($user, 'admin');
-            $b = requireBody(); requireFields($b, ['name','abbreviation']);
+            $b = requireBody(); requireFields($b, ['name']);
+            $abbr = $b['abbreviation'] ?? mb_substr($b['name'], 0, 3);
             $id = generateUUID();
             $db->prepare("INSERT INTO units(id,name,abbreviation) VALUES(?,?,?)")
-               ->execute([$id,$b['name'],$b['abbreviation']]);
+               ->execute([$id,$b['name'],$abbr]);
             respond(['id'=>$id]);
         } elseif ($method === 'PUT' && preg_match('#^/units/([^/]+)$#',$uri,$m)) {
             requireRole($user, 'admin');
