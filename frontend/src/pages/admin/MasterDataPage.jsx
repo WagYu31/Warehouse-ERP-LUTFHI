@@ -100,14 +100,14 @@ export default function MasterDataPage() {
       await api.post('/categories', { name })
       toast.success('Kategori ditambahkan')
       load()
-    } catch { toast.error('Gagal tambah kategori') }
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal tambah kategori') }
   }
   const editCat = async (id, name) => {
     try {
       await api.put(`/categories/${id}`, { name })
       toast.success('Kategori diperbarui')
       load()
-    } catch { toast.error('Gagal update kategori') }
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal update kategori') }
   }
   const delCat = async (item) => {
     if (!confirm(`Hapus kategori "${item.name}"?`)) return
@@ -124,14 +124,14 @@ export default function MasterDataPage() {
       await api.post('/units', { name })
       toast.success('Satuan ditambahkan')
       load()
-    } catch { toast.error('Gagal tambah satuan') }
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal tambah satuan') }
   }
   const editUnit = async (id, name) => {
     try {
       await api.put(`/units/${id}`, { name })
       toast.success('Satuan diperbarui')
       load()
-    } catch { toast.error('Gagal update satuan') }
+    } catch (e) { toast.error(e.response?.data?.message || 'Gagal update satuan') }
   }
   const delUnit = async (item) => {
     if (!confirm(`Hapus satuan "${item.name}"?`)) return

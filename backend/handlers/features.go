@@ -71,7 +71,9 @@ func (h *Handler) RecordPayment(c *gin.Context) {
 		payDate, _ = time.Parse("2006-01-02", b.PaymentDate)
 	}
 	method := b.Method
-	if method == "" { method = "transfer" }
+	if method == "" {
+		method = "transfer"
+	}
 	paidBy := c.GetString("user_id")
 	paymentID := uuid.New().String()
 
@@ -95,10 +97,10 @@ func (h *Handler) RecordPayment(c *gin.Context) {
 	tx.Commit()
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Pembayaran berhasil dicatat",
+		"message":    "Pembayaran berhasil dicatat",
 		"payment_id": paymentID,
 		"new_status": newStatus,
-		"remaining": newRemaining,
+		"remaining":  newRemaining,
 	})
 }
 
@@ -124,7 +126,9 @@ func (h *Handler) GetPaymentHistory(c *gin.Context) {
 			"payment_method": method, "notes": notes, "paid_by": paidBy,
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
@@ -167,7 +171,9 @@ func (h *Handler) GetPODetailFull(c *gin.Context) {
 			"unit_price": unitPrice, "subtotal": itemSubtotal,
 		})
 	}
-	if items == nil { items = []gin.H{} }
+	if items == nil {
+		items = []gin.H{}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"id": id, "po_number": poNum, "status": status, "supplier": supplierName,
@@ -223,11 +229,13 @@ func (h *Handler) GetStockTransfers(c *gin.Context) {
 		}
 		list = append(list, gin.H{
 			"id": id, "ref_number": ref, "status": status,
-			"transfer_date": dateStr,
+			"transfer_date":  dateStr,
 			"from_warehouse": fromW, "to_warehouse": toW, "requested_by": reqBy,
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
@@ -264,7 +272,9 @@ func (h *Handler) CreateStockTransfer(c *gin.Context) {
 		id, refNum, b.FromWarehouseID, b.ToWarehouseID, requestedBy, time.Now(), b.Notes)
 
 	for _, item := range b.Items {
-		if item.Qty <= 0 { continue }
+		if item.Qty <= 0 {
+			continue
+		}
 
 		// Cek stok di gudang asal
 		var avail int
@@ -323,10 +333,12 @@ func (h *Handler) GetOpnameList(c *gin.Context) {
 			"id": id, "ref_number": ref, "opname_date": dateStr,
 			"status": status, "warehouse_name": warehouseName,
 			"created_by_name": conductedBy,
-			"total_items": totalItems, "discrepancy_count": discrepancy,
+			"total_items":     totalItems, "discrepancy_count": discrepancy,
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
@@ -345,7 +357,9 @@ func (h *Handler) CreateOpnameFull(c *gin.Context) {
 	id := uuid.New().String()
 	conductedBy := c.GetString("user_id")
 	opDate := time.Now()
-	if b.OpnameDate != "" { opDate, _ = time.Parse("2006-01-02", b.OpnameDate) }
+	if b.OpnameDate != "" {
+		opDate, _ = time.Parse("2006-01-02", b.OpnameDate)
+	}
 
 	// Hitung total items di gudang ini
 	var totalItems int
@@ -374,7 +388,7 @@ func (h *Handler) CreateOpnameFull(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Opname dibuat, silakan input stok fisik",
-		"id": id, "ref_number": refNum, "total_items": totalItems,
+		"id":      id, "ref_number": refNum, "total_items": totalItems,
 	})
 }
 
@@ -407,7 +421,9 @@ func (h *Handler) GetOpnameDetail(c *gin.Context) {
 			"system_stock": sysStock, "physical_count": physCount, "discrepancy": disc,
 		})
 	}
-	if items == nil { items = []gin.H{} }
+	if items == nil {
+		items = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"id": id, "ref_number": ref, "status": status,
 		"opname_date": oDate, "warehouse": warehouseName,
@@ -432,7 +448,9 @@ func (h *Handler) SubmitOpnameCount(c *gin.Context) {
 		tx.QueryRow(`SELECT system_stock FROM opname_items WHERE opname_id=? AND item_id=?`,
 			opnameID, item.ItemID).Scan(&sysStock)
 		disc := item.PhysicalCount - sysStock
-		if disc != 0 { discrepancyCount++ }
+		if disc != 0 {
+			discrepancyCount++
+		}
 		tx.Exec(`UPDATE opname_items SET physical_count=?, discrepancy=? WHERE opname_id=? AND item_id=?`,
 			item.PhysicalCount, disc, opnameID, item.ItemID)
 	}
@@ -465,13 +483,17 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 		var isRead bool
 		var createdAt time.Time
 		rows.Scan(&nid, &title, &msg, &ntype, &isRead, &createdAt)
-		if !isRead { unread++ }
+		if !isRead {
+			unread++
+		}
 		list = append(list, gin.H{
 			"id": nid, "title": title, "message": msg, "type": ntype,
 			"is_read": isRead, "created_at": createdAt.Format("2006-01-02 15:04"),
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list, "unread": unread})
 }
 
@@ -515,7 +537,9 @@ func (h *Handler) GetLowStockAlerts(c *gin.Context) {
 			"warehouse": warehouseName,
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list, "count": len(list)})
 }
 
@@ -571,13 +595,17 @@ func (h *Handler) GetCategoriesAll(c *gin.Context) {
 		rows.Scan(&id, &name)
 		list = append(list, gin.H{"id": id, "name": name})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) UpdateCategory(c *gin.Context) {
 	id := c.Param("id")
-	var b struct{ Name string `json:"name" binding:"required"` }
+	var b struct {
+		Name string `json:"name" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&b); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -607,13 +635,17 @@ func (h *Handler) GetUnitsAll(c *gin.Context) {
 		rows.Scan(&id, &name)
 		list = append(list, gin.H{"id": id, "name": name})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) UpdateUnit(c *gin.Context) {
 	id := c.Param("id")
-	var b struct{ Name string `json:"name" binding:"required"` }
+	var b struct {
+		Name string `json:"name" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&b); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -653,24 +685,26 @@ func (h *Handler) GetReorderConfigs(c *gin.Context) {
 		var autoPO bool
 		rows.Scan(&id, &itemName, &sku, &warehouseName, &reorderPoint, &reorderQty, &autoPO, &currentStock)
 		list = append(list, gin.H{
-			"id": id,
-			"item": gin.H{"name": itemName, "sku": sku},
-			"warehouse": gin.H{"name": warehouseName},
+			"id":            id,
+			"item":          gin.H{"name": itemName, "sku": sku},
+			"warehouse":     gin.H{"name": warehouseName},
 			"reorder_point": reorderPoint, "reorder_qty": reorderQty, "auto_po": autoPO,
 			"current_stock": currentStock,
 		})
 	}
-	if list == nil { list = []gin.H{} }
+	if list == nil {
+		list = []gin.H{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
 func (h *Handler) CreateReorderConfig(c *gin.Context) {
 	var b struct {
-		ItemID      string `json:"item_id" binding:"required"`
-		WarehouseID string `json:"warehouse_id" binding:"required"`
-		ReorderPoint int   `json:"reorder_point"`
-		ReorderQty  int    `json:"reorder_qty"`
-		AutoPO      bool   `json:"auto_po"`
+		ItemID       string `json:"item_id" binding:"required"`
+		WarehouseID  string `json:"warehouse_id" binding:"required"`
+		ReorderPoint int    `json:"reorder_point"`
+		ReorderQty   int    `json:"reorder_qty"`
+		AutoPO       bool   `json:"auto_po"`
 	}
 	if err := c.ShouldBindJSON(&b); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})

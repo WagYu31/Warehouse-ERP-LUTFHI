@@ -206,15 +206,26 @@ func (h *Handler) GetCategories(c *gin.Context) {
 
 func (h *Handler) CreateCategory(c *gin.Context) {
 	var b struct{ Name string `json:"name"` }
-	c.ShouldBindJSON(&b)
+	if err := c.ShouldBindJSON(&b); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO categories (id,name) VALUES (?,?)`, id, b.Name)
+	_, err := h.DB.Exec(`INSERT INTO categories (id,name) VALUES (?,?)`, id, b.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Kategori dibuat", "id": id})
 }
 
 // ── Units ─────────────────────────────────────────────────────
 func (h *Handler) GetUnits(c *gin.Context) {
-	rows, _ := h.DB.Query(`SELECT id, name, abbreviation FROM units ORDER BY name`)
+	rows, err := h.DB.Query(`SELECT id, name, abbreviation FROM units ORDER BY name`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
 	defer rows.Close()
 	var list []gin.H
 	for rows.Next() {
@@ -233,8 +244,26 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 		Name         string `json:"name"`
 		Abbreviation string `json:"abbreviation"`
 	}
-	c.ShouldBindJSON(&b)
+	if err := c.ShouldBindJSON(&b); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	
+	// Default abbreviation to empty string or slice of name if not provided
+	if b.Abbreviation == "" && len(b.Name) > 0 {
+		if len(b.Name) <= 3 {
+			b.Abbreviation = b.Name
+		} else {
+			b.Abbreviation = b.Name[:3]
+		}
+	}
+
 	id := uuid.New().String()
-	h.DB.Exec(`INSERT INTO units (id,name,abbreviation) VALUES (?,?,?)`, id, b.Name, b.Abbreviation)
+	_, err := h.DB.Exec(`INSERT INTO units (id,name,abbreviation) VALUES (?,?,?)`, id, b.Name, b.Abbreviation)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Satuan dibuat", "id": id})
 }
+
