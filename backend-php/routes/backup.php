@@ -5,7 +5,7 @@
 // ============================================================
 
 function handleBackup($method, $uri, $user) {
-    requireRole($user, ['admin']);
+    requireRole($user, 'admin');
     $db = getDB();
 
     // GET /backup/csv — Download ZIP of all tables
