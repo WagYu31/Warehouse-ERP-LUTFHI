@@ -284,6 +284,104 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             return;
         }
 
+        // POST /erp/invoices/:id/check-payment — Cek & sync status dari Midtrans API
+        if ($method === 'POST' && preg_match('#^/invoices/([^/]+)/check-payment$#', $sub, $m)) {
+            requireRole($user, 'admin','finance_procurement');
+            $invoiceId = $m[1];
+            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: '';
+
+            if (!$serverKey) {
+                respondError('MIDTRANS_SERVER_KEY belum dikonfigurasi', 500);
+            }
+
+            // Ambil order_id terbaru yang masih pending
+            $stmt = $db->prepare("SELECT order_id, amount, status FROM midtrans_orders WHERE invoice_id=? AND status NOT IN ('settled','paid') ORDER BY created_at DESC LIMIT 1");
+            $stmt->execute([$invoiceId]);
+            $order = $stmt->fetch();
+
+            if (!$order) {
+                // Tidak ada pending order — kembalikan status invoice saja
+                $invStmt = $db->prepare("SELECT status FROM invoices WHERE id=?");
+                $invStmt->execute([$invoiceId]);
+                $inv = $invStmt->fetch();
+                respond(['message' => 'Tidak ada transaksi pending', 'synced' => false, 'invoice_status' => $inv['status'] ?? 'unknown']);
+                return;
+            }
+
+            $orderId = $order['order_id'];
+            $storedAmount = (float)$order['amount'];
+
+            // Query Midtrans Transaction Status API
+            $isProduction = getenv('MIDTRANS_IS_PRODUCTION') === 'true';
+            $baseUrl = $isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+            $statusUrl = $baseUrl . '/v2/' . $orderId . '/status';
+
+            $ch = curl_init($statusUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json',
+                    'Authorization: Basic ' . base64_encode($serverKey . ':'),
+                ],
+            ]);
+            $mtResp = json_decode(curl_exec($ch), true);
+            curl_close($ch);
+
+            $txStatus   = $mtResp['transaction_status'] ?? '';
+            $fraudStatus = $mtResp['fraud_status'] ?? 'accept';
+            $grossAmount = (float)($mtResp['gross_amount'] ?? $storedAmount);
+
+            $settled = in_array($txStatus, ['settlement', 'capture']) && $fraudStatus !== 'deny';
+
+            if ($settled) {
+                // Cek idempotency — jangan double payment
+                $chk = $db->prepare("SELECT status FROM midtrans_orders WHERE order_id=?");
+                $chk->execute([$orderId]);
+                $existing = $chk->fetch();
+                if ($existing && $existing['status'] === 'settled') {
+                    $invStmt = $db->prepare("SELECT status FROM invoices WHERE id=?");
+                    $invStmt->execute([$invoiceId]);
+                    $inv = $invStmt->fetch();
+                    respond(['message' => 'Sudah diproses sebelumnya', 'synced' => true, 'invoice_status' => $inv['status'] ?? 'paid']);
+                    return;
+                }
+
+                // Update invoice
+                $invStmt = $db->prepare("SELECT total_amount, amount_paid FROM invoices WHERE id=?");
+                $invStmt->execute([$invoiceId]);
+                $inv = $invStmt->fetch();
+
+                $newPaid   = (float)$inv['amount_paid'] + $grossAmount;
+                $newStatus = $newPaid >= (float)$inv['total_amount'] ? 'paid' : 'partial';
+
+                $db->prepare("UPDATE invoices SET amount_paid=?, status=?, updated_at=NOW() WHERE id=?")
+                   ->execute([$newPaid, $newStatus, $invoiceId]);
+
+                $db->prepare("INSERT INTO invoice_payments(id,invoice_id,amount,payment_method,payment_date,notes,recorded_by) VALUES(?,?,?,'midtrans',NOW(),?,NULL)")
+                   ->execute([generateUUID(), $invoiceId, $grossAmount, 'Midtrans - ' . $orderId]);
+
+                $db->prepare("UPDATE midtrans_orders SET status='settled' WHERE order_id=?")
+                   ->execute([$orderId]);
+
+                respond(['message' => '✅ Pembayaran dikonfirmasi!', 'synced' => true, 'invoice_status' => $newStatus]);
+                return;
+            }
+
+            if ($txStatus === 'pending') {
+                respond(['message' => '⏳ Pembayaran masih pending', 'synced' => false, 'invoice_status' => 'unpaid', 'transaction_status' => $txStatus]);
+                return;
+            }
+
+            if (in_array($txStatus, ['cancel', 'expire', 'deny'])) {
+                $db->prepare("UPDATE midtrans_orders SET status=? WHERE order_id=?")->execute([$txStatus, $orderId]);
+                respond(['message' => 'Transaksi ' . $txStatus, 'synced' => false, 'invoice_status' => 'unpaid', 'transaction_status' => $txStatus]);
+                return;
+            }
+
+            respond(['message' => 'Status: ' . $txStatus, 'synced' => false, 'invoice_status' => 'unpaid', 'transaction_status' => $txStatus]);
+            return;
+        }
+
 
         if ($method === 'GET' && $sub === '/invoices') {
             [$limit, $offset] = paginate();
