@@ -253,7 +253,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
                 'custom_field1' => $m[1], // invoice_id
             ];
 
-            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: '';
+            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
             $url       = getenv('MIDTRANS_IS_PRODUCTION') === 'true'
                 ? 'https://app.midtrans.com/snap/v1/transactions'
                 : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
@@ -288,11 +288,9 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
         if ($method === 'POST' && preg_match('#^/invoices/([^/]+)/check-payment$#', $sub, $m)) {
             requireRole($user, 'admin','finance_procurement');
             $invoiceId = $m[1];
-            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: '';
+            $serverKey = getenv('MIDTRANS_SERVER_KEY') ?: 'Mid-server-KAbrho23wovIVChp-hGjUvlb';
 
-            if (!$serverKey) {
-                respondError('MIDTRANS_SERVER_KEY belum dikonfigurasi', 500);
-            }
+            $isProductionEnv = getenv('MIDTRANS_IS_PRODUCTION') === 'true';
 
             // Ambil order_id terbaru yang masih pending
             $stmt = $db->prepare("SELECT order_id, amount, status FROM midtrans_orders WHERE invoice_id=? AND status NOT IN ('settled','paid') ORDER BY created_at DESC LIMIT 1");
@@ -312,7 +310,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             $storedAmount = (float)$order['amount'];
 
             // Query Midtrans Transaction Status API
-            $isProduction = getenv('MIDTRANS_IS_PRODUCTION') === 'true';
+            $isProduction = $isProductionEnv;
             $baseUrl = $isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
             $statusUrl = $baseUrl . '/v2/' . $orderId . '/status';
 
