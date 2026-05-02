@@ -124,6 +124,9 @@ func main() {
 			c.JSON(200, gin.H{"status": "ok", "version": "3.0.0", "service": "WMS LUTFHI"})
 		})
 
+		// ── Midtrans Webhook (public — no auth) ──────
+		api.POST("/erp/midtrans/notification", h.MidtransNotification)
+
 		// ── Auth (public + rate limited) ────────────────
 		auth := api.Group("/auth")
 		{
@@ -261,6 +264,8 @@ func main() {
 				erp.POST("/invoices", middleware.RequireRole("admin", "finance_procurement"), h.CreateInvoice)
 				erp.GET("/invoices/:id", h.GetInvoiceDetail)
 				erp.POST("/invoices/:id/payment", middleware.RequireRole("admin", "finance_procurement"), h.RecordPayment)
+				erp.POST("/invoices/:id/snap-token", middleware.RequireRole("admin", "finance_procurement"), h.CreateSnapToken)
+				erp.POST("/invoices/:id/check-payment", middleware.RequireRole("admin", "finance_procurement"), h.CheckPaymentStatus)
 				erp.GET("/invoices/:id/payments", h.GetPaymentHistory)
 				erp.GET("/invoices/export/csv", h.ExportInvoicesCSV)
 

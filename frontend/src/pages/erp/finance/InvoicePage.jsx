@@ -121,31 +121,70 @@ export default function InvoicePage() {
 
   const openView = (row) => { setSelectedInv(row); setDetailModal(true) }
 
+  const checkAndSyncPayment = async (inv) => {
+    try {
+      const res = await api.post(`/erp/invoices/${inv.id}/check-payment`, {})
+      const synced = res?.synced ?? res?.data?.synced
+      const invStatus = res?.invoice_status ?? res?.data?.invoice_status
+      if (synced) {
+        toast.success(`✅ Invoice diperbarui! Status: ${invStatus === 'paid' ? 'Lunas' : 'Sebagian'}`)
+      }
+      load()
+    } catch {
+      // Silently fail — user still gets the success popup from Midtrans
+      load()
+    }
+  }
+
   const payWithMidtrans = async (inv) => {
     if (!inv) return
     try {
       toast.loading('Mempersiapkan pembayaran...', { id: 'snap' })
-      await loadSnapScript()
       const res = await api.post(`/erp/invoices/${inv.id}/snap-token`, {})
       toast.dismiss('snap')
-      const { token } = res
-      window.snap.pay(token, {
-        onSuccess: (result) => {
-          toast.success('✅ Pembayaran berhasil! Invoice akan diperbarui otomatis.')
-          setDetailModal(false)
-          setTimeout(() => load(), 2000)
-        },
-        onPending: (result) => {
-          toast('⏳ Pembayaran pending, tunggu konfirmasi.')
-          setTimeout(() => load(), 2000)
-        },
-        onError: (result) => {
-          toast.error('❌ Pembayaran gagal: ' + (result.status_message || 'Unknown error'))
-        },
-        onClose: () => {
-          toast('Popup pembayaran ditutup.')
+      const token = res?.data?.token || res?.token
+
+      if (!token) {
+        toast.error('Token pembayaran tidak diterima')
+        return
+      }
+
+      // Try snap popup first
+      let popupWorked = false
+      try {
+        await loadSnapScript()
+        if (window.snap && typeof window.snap.pay === 'function') {
+          window.snap.pay(token, {
+            onSuccess: (result) => {
+              toast.success('✅ Pembayaran berhasil! Memperbarui status invoice...')
+              setDetailModal(false)
+              // Force sync status langsung ke Midtrans API
+              checkAndSyncPayment(inv)
+            },
+            onPending: (result) => {
+              toast('⏳ Pembayaran pending, mengecek status...')
+              setTimeout(() => checkAndSyncPayment(inv), 3000)
+            },
+            onError: (result) => {
+              toast.error('❌ Pembayaran gagal: ' + (result.status_message || 'Unknown error'))
+            },
+            onClose: () => {
+              toast('Popup ditutup. Mengecek status pembayaran...')
+              // Cek apakah pembayaran sebenarnya sudah berhasil
+              setTimeout(() => checkAndSyncPayment(inv), 1500)
+            }
+          })
+          popupWorked = true
         }
-      })
+      } catch { /* popup failed, will use redirect */ }
+
+      // Fallback: redirect to Midtrans payment page
+      if (!popupWorked) {
+        const base = import.meta.env.VITE_MIDTRANS_IS_PRODUCTION === 'true'
+          ? 'https://app.midtrans.com/snap/v4/redirection/'
+          : 'https://app.sandbox.midtrans.com/snap/v4/redirection/'
+        window.location.href = base + token
+      }
     } catch (e) {
       toast.dismiss('snap')
       toast.error(e?.response?.data?.message || 'Gagal memulai pembayaran')
