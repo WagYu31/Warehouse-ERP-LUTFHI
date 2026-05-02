@@ -319,13 +319,18 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_HTTPHEADER     => [
-                    'Accept: application/json',
-                    'Authorization: Basic ' . base64_encode($serverKey . ':'),
-                ],
+                CURLOPT_USERPWD        => $serverKey . ':',
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
             ]);
             $mtResp = json_decode(curl_exec($ch), true);
+            $curlErr = curl_error($ch);
             curl_close($ch);
+
+            // Log response untuk debugging
+            if (!$mtResp) {
+                respond(['error' => 'Midtrans API gagal', 'curl_error' => $curlErr, 'synced' => false]);
+                return;
+            }
 
             $txStatus   = $mtResp['transaction_status'] ?? '';
             $fraudStatus = $mtResp['fraud_status'] ?? 'accept';
