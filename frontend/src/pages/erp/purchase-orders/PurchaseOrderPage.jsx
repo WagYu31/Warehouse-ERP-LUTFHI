@@ -96,7 +96,6 @@ export default function PurchaseOrderPage() {
 
   const handleApprove = async () => {
     if (!selected) return
-    if (!confirm('Setujui PO ini? Supplier akan diproses untuk pengiriman.')) return
     try {
       const res = await api.put(`/erp/purchase-orders/${selected.id}/approve`, {})
       const data = res.data || res
