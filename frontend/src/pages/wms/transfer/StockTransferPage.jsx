@@ -104,7 +104,6 @@ export default function StockTransferPage() {
 
   const handleApprove = async () => {
     if (!selected) return
-    if (!confirm('Setujui transfer ini? Stok akan berpindah.')) return
     try {
       await api.put(`/stock-transfers/${selected.id}/approve`, {})
       toast.success('Transfer disetujui! Stok sudah berpindah.')

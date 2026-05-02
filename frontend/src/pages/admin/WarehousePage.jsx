@@ -51,7 +51,6 @@ export default function WarehousePage() {
   }
 
   const del = async (row) => {
-    if (!confirm(`Hapus gudang "${row.name}"?`)) return
     await api.delete(`/warehouses/${row.id}`); toast.success('Gudang dihapus'); load()
   }
 

@@ -290,7 +290,6 @@ export default function MasterDataPage() {
   const toggleCat = async (item) => {
     const isActive = item.is_active == 1 || item.is_active === true || item.is_active === '1'
     const action = isActive ? 'menonaktifkan' : 'mengaktifkan'
-    if (!confirm(`Yakin ingin ${action} kategori "${item.name}"?`)) return
     try {
       await api.put(`/categories/${item.id}/toggle`)
       toast.success(`Kategori berhasil di${isActive ? 'nonaktifkan' : 'aktifkan'}`)
@@ -298,7 +297,6 @@ export default function MasterDataPage() {
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal mengubah status') }
   }
   const delCat = async (item) => {
-    if (!confirm(`HAPUS PERMANEN kategori "${item.name}"?\n\nData yang sudah dihapus tidak bisa dikembalikan!`)) return
     try {
       await api.delete(`/categories/${item.id}`)
       toast.success('Kategori berhasil dihapus')
@@ -318,7 +316,6 @@ export default function MasterDataPage() {
   const toggleUnit = async (item) => {
     const isActive = item.is_active == 1 || item.is_active === true || item.is_active === '1'
     const action = isActive ? 'menonaktifkan' : 'mengaktifkan'
-    if (!confirm(`Yakin ingin ${action} satuan "${item.name}"?`)) return
     try {
       await api.put(`/units/${item.id}/toggle`)
       toast.success(`Satuan berhasil di${isActive ? 'nonaktifkan' : 'aktifkan'}`)
@@ -326,7 +323,6 @@ export default function MasterDataPage() {
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal mengubah status') }
   }
   const delUnit = async (item) => {
-    if (!confirm(`HAPUS PERMANEN satuan "${item.name}"?\n\nData yang sudah dihapus tidak bisa dikembalikan!`)) return
     try {
       await api.delete(`/units/${item.id}`)
       toast.success('Satuan berhasil dihapus')

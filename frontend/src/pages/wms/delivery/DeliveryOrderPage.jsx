@@ -96,7 +96,6 @@ export default function DeliveryOrderPage() {
 
   const handleApprove = async () => {
     if (!detail) return
-    if (!confirm('Setujui Surat Jalan ini? Stok akan dikurangi dari gudang.')) return
     try {
       await api.put(`/delivery-orders/${detail.id}/approve`, {})
       toast.success('Surat Jalan disetujui! Stok sudah dikurangi.')
@@ -113,7 +112,6 @@ export default function DeliveryOrderPage() {
   }
 
   const handleConfirmDelivered = async () => {
-    if (!confirm('Konfirmasi barang sudah diterima?')) return
     try {
       await api.put(`/delivery-orders/${detail.id}/confirm`, {})
       toast.success('Pengiriman dikonfirmasi diterima!')

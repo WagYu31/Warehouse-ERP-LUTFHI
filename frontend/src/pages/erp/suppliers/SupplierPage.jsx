@@ -51,7 +51,6 @@ export default function SupplierPage() {
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal') }
   }
   const del = async (row) => {
-    if (!confirm(`Hapus supplier "${row.name}"?`)) return
     await api.delete(`/suppliers/${row.id}`); toast.success('Dihapus'); load()
   }
 

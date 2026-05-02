@@ -117,7 +117,6 @@ export default function PurchaseOrderPage() {
 
   const handleReceive = async () => {
     if (!selected) return
-    if (!confirm('Konfirmasi barang dari supplier sudah diterima?\nInbound akan dibuat otomatis.')) return
     try {
       const res = await api.post(`/erp/purchase-orders/${selected.id}/receive`, {})
       const data = res.data || res

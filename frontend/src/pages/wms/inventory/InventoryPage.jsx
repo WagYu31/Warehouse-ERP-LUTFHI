@@ -100,7 +100,6 @@ export default function InventoryPage() {
   }
 
   const del = async (row) => {
-    if (!confirm(`Hapus item "${row.name}"?`)) return
     await api.delete(`/items/${row.id}`)
     toast.success('Item dihapus'); load()
   }

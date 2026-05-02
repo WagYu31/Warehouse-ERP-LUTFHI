@@ -66,7 +66,6 @@ export default function ReturnPage() {
   }
 
   const approve = async (id) => {
-    if (!confirm('Approve retur ini? Stok akan disesuaikan.')) return
     try {
       await api.put(`/returns/${id}/approve`)
       toast.success('Retur diapprove, stok disesuaikan'); load()
@@ -75,7 +74,6 @@ export default function ReturnPage() {
   }
 
   const reject = async (id) => {
-    if (!confirm('Tolak retur ini?')) return
     try {
       await api.put(`/returns/${id}/reject`)
       toast.success('Retur ditolak'); load()

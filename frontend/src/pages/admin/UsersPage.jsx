@@ -61,7 +61,6 @@ export default function UsersPage() {
   }
 
   const del = async (row) => {
-    if (!confirm(`Hapus pengguna "${row.name}"?`)) return
     await api.delete(`/users/${row.id}`); toast.success('Pengguna dihapus'); load()
   }
 
