@@ -232,7 +232,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             if ($invoice['status'] === 'paid') respondError('Invoice sudah lunas', 400);
 
             $sisa   = (float)$invoice['total_amount'] - (float)($invoice['amount_paid'] ?? 0);
-            $orderId = 'WMS-INV-' . $m[1] . '-' . time();
+            $orderId = 'WMS-' . substr($m[1], 0, 8) . '-' . time();
 
             $payload = [
                 'transaction_details' => [
