@@ -263,6 +263,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_HTTPHEADER     => [
                     'Content-Type: application/json',
                     'Authorization: Basic ' . base64_encode($serverKey . ':'),
@@ -317,6 +318,7 @@ function handleERP(string $method, string $uri, array $user, array &$params): vo
             $ch = curl_init($statusUrl);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_HTTPHEADER     => [
                     'Accept: application/json',
                     'Authorization: Basic ' . base64_encode($serverKey . ':'),
