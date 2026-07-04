@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, X, Send, Sparkles, Loader2, Copy, Check, Trash2, ChevronDown, Minus, Mic, MicOff } from 'lucide-react'
+import { Bot, X, Send, Sparkles, Loader2, Copy, Check, Trash2, ChevronDown, Minus, Mic, MicOff, Maximize2, Minimize2 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
@@ -193,6 +193,7 @@ export default function AIChatbot() {
 
   const [open,      setOpen]      = useState(false)
   const [minimized, setMinimized] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [messages,  setMessages]  = useState([makeInitMsg()])
   const [input,     setInput]     = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -344,12 +345,12 @@ export default function AIChatbot() {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
-            width: 360,
+            width: isExpanded ? 640 : 360,
             maxWidth: 'calc(100vw - 2rem)',
-            height: minimized ? 60 : 500,
+            height: minimized ? 60 : (isExpanded ? 640 : 500),
             maxHeight: 'calc(100vh - 4rem)',
             animation: 'chatSlideUp 0.3s cubic-bezier(.22,.68,0,1.2)',
-            transition: 'height 0.3s cubic-bezier(.22,.68,0,1.2)',
+            transition: 'width 0.3s cubic-bezier(.22,.68,0,1.2), height 0.3s cubic-bezier(.22,.68,0,1.2)',
             ...T.window
           }}>
 
@@ -370,6 +371,14 @@ export default function AIChatbot() {
             <div className="flex items-center gap-1">
               {[
                 { title:'Bersihkan', icon:<Trash2 size={13} />, action: clearChat },
+                { 
+                  title: isExpanded ? 'Kecilkan Jendela' : 'Perbesar Jendela',
+                  icon: isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />,
+                  action: () => {
+                    setIsExpanded(!isExpanded);
+                    setMinimized(false);
+                  }
+                },
                 { title: minimized ? 'Perluas' : 'Kecilkan',
                   icon: minimized ? <ChevronDown size={13} style={{ transform:'rotate(180deg)' }}/> : <Minus size={13}/>,
                   action: () => setMinimized(!minimized) },
