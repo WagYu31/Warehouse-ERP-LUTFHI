@@ -369,56 +369,71 @@ function containsAny($str, array $keywords) {
 function formatContextForFallback($ctx) {
     $out = "";
     if (!empty($ctx['items'])) {
-        $out .= "📦 INVENTARIS:\n";
+        $out .= "**📦 INVENTARIS BARANG**:\n\n";
+        $out .= "| Nama Barang | SKU | Min Stok | Harga |\n";
+        $out .= "| :--- | :--- | :--- | :--- |\n";
         $count = 0;
         foreach ($ctx['items'] as $i) {
             if ($count >= 10) {
-                $out .= "  • ... dan " . (count($ctx['items']) - 10) . " item lainnya.\n";
+                $out .= "| ... dan " . (count($ctx['items']) - 10) . " item lainnya. | | | |\n";
                 break;
             }
-            $out .= "  • {$i['name']} (SKU: {$i['sku']}): min_stok={$i['min_stock']}, harga=Rp" . number_format($i['price'], 0, ',', '.') . "\n";
+            $out .= "| {$i['name']} | {$i['sku']} | {$i['min_stock']} | Rp" . number_format($i['price'], 0, ',', '.') . " |\n";
             $count++;
         }
+        $out .= "\n";
     }
     
     if (isset($ctx['critical_count']) && $ctx['critical_count'] > 0) {
-        $out .= "🚨 Item Kritis: {$ctx['critical_count']} item perlu restock segera.\n";
+        $out .= "🚨 **Item Kritis**: {$ctx['critical_count']} item perlu restock segera.\n\n";
     }
     
     if (!empty($ctx['warehouses'])) {
-        $out .= "\n🏭 GUDANG AKTIF:\n";
+        $out .= "**🏭 GUDANG AKTIF**:\n\n";
+        $out .= "| Nama Gudang | Kode | Kota | PIC |\n";
+        $out .= "| :--- | :--- | :--- | :--- |\n";
         foreach ($ctx['warehouses'] as $w) {
-            $out .= "  • {$w['name']} ({$w['code']}) — {$w['city']}, PIC: {$w['pic_name']}\n";
+            $out .= "| {$w['name']} | {$w['code']} | {$w['city']} | {$w['pic_name']} |\n";
         }
+        $out .= "\n";
     }
     
-    if (!empty($ctx['inbound_stats'])) {
-        $s = $ctx['inbound_stats'];
-        $out .= "\n⬇️ BARANG MASUK: Total={$s['total']}, Pending={$s['pending']}, Confirmed={$s['confirmed']}\n";
+    $hasStats = !empty($ctx['inbound_stats']) || !empty($ctx['outbound_total']) || !empty($ctx['spb_stats']) || !empty($ctx['opname_stats']);
+    if ($hasStats) {
+        $out .= "**🔄 STATUS OPERASIONAL**:\n";
+        if (!empty($ctx['inbound_stats'])) {
+            $s = $ctx['inbound_stats'];
+            $out .= "• **Barang Masuk**: Total {$s['total']} transaksi ({$s['pending']} pending, {$s['confirmed']} confirmed)\n";
+        }
+        if (!empty($ctx['outbound_total'])) {
+            $out .= "• **Barang Keluar**: Total {$ctx['outbound_total']} transaksi\n";
+        }
+        if (!empty($ctx['spb_stats'])) {
+            $s = $ctx['spb_stats'];
+            $out .= "• **SPB Pending**: {$s['pending']} dari {$s['total']} pengajuan\n";
+        }
+        if (!empty($ctx['opname_stats'])) {
+            $s = $ctx['opname_stats'];
+            $out .= "• **Stock Opname**: {$s['in_progress']} sedang berlangsung, {$s['completed']} selesai\n";
+        }
+        $out .= "\n";
     }
-    if (!empty($ctx['outbound_total'])) {
-        $out .= "⬆️ BARANG KELUAR: Total={$ctx['outbound_total']}\n";
-    }
-    if (!empty($ctx['spb_stats'])) {
-        $s = $ctx['spb_stats'];
-        $out .= "📋 SPB Pending: {$s['pending']} / {$s['total']}\n";
-    }
-    if (!empty($ctx['opname_stats'])) {
-        $s = $ctx['opname_stats'];
-        $out .= "🔄 OPNAME Berlangsung: {$s['in_progress']}\n";
-    }
-    if (!empty($ctx['po_stats'])) {
-        $s = $ctx['po_stats'];
-        $out .= "\n🛒 PURCHASE ORDER: Total={$s['total']}, Draft={$s['draft']}, Sent={$s['sent']}, Complete={$s['complete']}, Nilai=Rp" . number_format($s['total_value'] ?? 0, 0, ',', '.') . "\n";
-    }
-    if (!empty($ctx['invoice_stats'])) {
-        $s = $ctx['invoice_stats'];
-        $out .= "📄 INVOICE: Total={$s['total']}, Unpaid={$s['unpaid']}, Partial={$s['partial']}, Paid={$s['paid']}, Overdue={$s['overdue']}\n";
-        $out .= "   Tagihan=Rp" . number_format($s['total_tagihan'] ?? 0, 0, ',', '.') . ", Terbayar=Rp" . number_format($s['total_terbayar'] ?? 0, 0, ',', '.') . "\n";
-    }
-    if (!empty($ctx['budget_stats'])) {
-        $s = $ctx['budget_stats'];
-        $out .= "💰 BUDGET: {$s['total']} anggaran, Total=Rp" . number_format($s['total_budget'] ?? 0, 0, ',', '.') . ", Terpakai=Rp" . number_format($s['total_used'] ?? 0, 0, ',', '.') . "\n";
+    
+    $hasFinance = !empty($ctx['po_stats']) || !empty($ctx['invoice_stats']) || !empty($ctx['budget_stats']);
+    if ($hasFinance) {
+        $out .= "**💰 STATUS KEUANGAN & ERP**:\n";
+        if (!empty($ctx['po_stats'])) {
+            $s = $ctx['po_stats'];
+            $out .= "• **Purchase Order**: Total {$s['total']} PO (Nilai: Rp" . number_format($s['total_value'] ?? 0, 0, ',', '.') . ")\n";
+        }
+        if (!empty($ctx['invoice_stats'])) {
+            $s = $ctx['invoice_stats'];
+            $out .= "• **Invoice**: {$s['unpaid']} unpaid, {$s['overdue']} overdue (Tagihan: Rp" . number_format($s['total_tagihan'] ?? 0, 0, ',', '.') . ")\n";
+        }
+        if (!empty($ctx['budget_stats'])) {
+            $s = $ctx['budget_stats'];
+            $out .= "• **Budget**: Total Rp" . number_format($s['total_budget'] ?? 0, 0, ',', '.') . " (Terpakai: Rp" . number_format($s['total_used'] ?? 0, 0, ',', '.') . ")\n";
+        }
     }
     
     return $out;

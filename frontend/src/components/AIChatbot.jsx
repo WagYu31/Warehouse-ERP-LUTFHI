@@ -1,8 +1,100 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, X, Send, Sparkles, Loader2, Copy, Check, Trash2, ChevronDown, Minus } from 'lucide-react'
+import { Bot, X, Send, Sparkles, Loader2, Copy, Check, Trash2, ChevronDown, Minus, Mic, MicOff } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
+
+// ── Markdown Parser Helper ────────────────────────────────────
+function parseMarkdown(text, isLight) {
+  if (!text) return '';
+  
+  // Escape HTML first to prevent XSS while allowing styling
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Parse markdown tables
+  const lines = html.split('\n');
+  let inTable = false;
+  let tableRows = [];
+  let newLines = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      if (line.match(/^\|[\s\-\|]+$/)) {
+        continue;
+      }
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      tableRows.push(cells);
+    } else {
+      if (inTable) {
+        let tableHtml = `<div class="overflow-x-auto my-2 border ${
+          isLight ? 'border-slate-200 bg-white' : 'border-white/10 bg-slate-900/50'
+        } rounded-lg shadow-sm"><table class="w-full text-xs text-left border-collapse">`;
+        tableRows.forEach((row, ri) => {
+          const isHeader = ri === 0;
+          tableHtml += `<tr class="${
+            isHeader 
+              ? isLight ? 'bg-slate-100 font-semibold border-b border-slate-200 text-slate-700' : 'bg-white/5 font-semibold border-b border-white/10 text-slate-300'
+              : isLight ? 'border-b border-slate-100 last:border-b-0 text-slate-600' : 'border-b border-white/5 last:border-b-0 text-slate-400'
+          }">`;
+          row.forEach(cell => {
+            const tag = isHeader ? 'th' : 'td';
+            tableHtml += `<${tag} class="px-3 py-2 border-r ${
+              isLight ? 'border-slate-100' : 'border-white/5'
+            } last:border-r-0">${cell}</${tag}>`;
+          });
+          tableHtml += '</tr>';
+        });
+        tableHtml += '</table></div>';
+        newLines.push(tableHtml);
+        inTable = false;
+      }
+      newLines.push(lines[i]);
+    }
+  }
+  if (inTable) {
+    let tableHtml = `<div class="overflow-x-auto my-2 border ${
+      isLight ? 'border-slate-200 bg-white' : 'border-white/10 bg-slate-900/50'
+    } rounded-lg shadow-sm"><table class="w-full text-xs text-left border-collapse">`;
+    tableRows.forEach((row, ri) => {
+      const isHeader = ri === 0;
+      tableHtml += `<tr class="${
+        isHeader 
+          ? isLight ? 'bg-slate-100 font-semibold border-b border-slate-200 text-slate-700' : 'bg-white/5 font-semibold border-b border-white/10 text-slate-300'
+          : isLight ? 'border-b border-slate-100 last:border-b-0 text-slate-600' : 'border-b border-white/5 last:border-b-0 text-slate-400'
+      }">`;
+      row.forEach(cell => {
+        const tag = isHeader ? 'th' : 'td';
+        tableHtml += `<${tag} class="px-3 py-2 border-r ${
+          isLight ? 'border-slate-100' : 'border-white/5'
+        } last:border-r-0">${cell}</${tag}>`;
+      });
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</table></div>';
+    newLines.push(tableHtml);
+  }
+  
+  html = newLines.join('\n');
+  
+  // Parse bold **text**
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Parse bullet lists
+  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li class="ml-4 list-disc">$1</li>');
+  
+  // Wrap list items in <ul>
+  html = html.replace(/(<li.*?>.*?<\/li>\n?)+/g, '<ul class="my-1.5 space-y-0.5">$0</ul>');
+  
+  return html;
+}
 
 // ── Quick suggestion chips per role ──────────────────────────
 const QUICK_CHIPS = {
@@ -55,9 +147,9 @@ function MessageBubble({ msg, isLight }) {
               ? 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tl-md shadow-sm'
               : 'bg-white/[0.07] text-slate-200 border border-white/[0.08] rounded-tl-md shadow-sm'
             : 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-tr-md shadow-md shadow-violet-500/20'
-        }`}>
-          {msg.text}
-        </div>
+        }`}
+        dangerouslySetInnerHTML={{ __html: parseMarkdown(msg.text, isLight) }}
+        />
 
         {/* Timestamp + copy */}
         <div className={`flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${isAI ? 'flex-row' : 'flex-row-reverse'}`}>
@@ -104,10 +196,49 @@ export default function AIChatbot() {
   const [messages,  setMessages]  = useState([makeInitMsg()])
   const [input,     setInput]     = useState('')
   const [loading,   setLoading]   = useState(false)
+  const [listening, setListening] = useState(false)
 
   const chatRef  = useRef(null)
   const inputRef = useRef(null)
+  const recognitionRef = useRef(null)
   const chips    = QUICK_CHIPS[user?.role] || QUICK_CHIPS.admin
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition()
+      rec.continuous = false
+      rec.lang = 'id-ID'
+      rec.interimResults = false
+      
+      rec.onstart = () => {
+        setListening(true)
+      }
+      
+      rec.onend = () => {
+        setListening(false)
+      }
+      
+      rec.onresult = (e) => {
+        const result = e.results[0][0].transcript
+        setInput(prev => prev ? prev + ' ' + result : result)
+      }
+      
+      recognitionRef.current = rec
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Browser Anda tidak mendukung input suara (Speech Recognition).')
+      return
+    }
+    if (listening) {
+      recognitionRef.current.stop()
+    } else {
+      recognitionRef.current.start()
+    }
+  }
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
@@ -321,6 +452,16 @@ export default function AIChatbot() {
                       e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px'
                     }}
                   />
+                  {/* Mic Button */}
+                  <button onClick={toggleListening} disabled={loading}
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
+                      listening ? 'bg-rose-500 animate-pulse text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                    }`}
+                    style={{ minHeight:32, minWidth:32 }}
+                    title={listening ? "Sedang mendengarkan..." : "Input suara"}>
+                    {listening ? <MicOff size={14} /> : <Mic size={14} />}
+                  </button>
+
                   <button onClick={() => send()} disabled={!input.trim() || loading}
                     className="w-8 h-8 rounded-xl flex items-center justify-center transition-all flex-shrink-0 disabled:opacity-30"
                     style={{
