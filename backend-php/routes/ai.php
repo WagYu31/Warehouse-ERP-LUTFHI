@@ -12,15 +12,29 @@ function handleAI($method, $uri, $user) {
         $message = trim($body['message'] ?? '');
         if (!$message) respondError('Message is required', 400);
 
+        // Load environmental variables (like GROQ_API_KEY)
+        loadAIEnv();
+
         // Gather context data based on user role
         $context = gatherContextForRole($db, $user);
 
-        // Build prompt
-        $systemPrompt = buildSystemPrompt($user, $context);
+        // Get API Key
+        $apiKey = getenv('GROQ_API_KEY') ?: 'GROQ_API_KEY_PLACEHOLDER';
 
-        // Call Groq API (key stored server-side only)
-        $apiKey = 'GROQ_API_KEY_PLACEHOLDER';
-        $response = callGroq($apiKey, $systemPrompt, $message);
+        // Use fallback if API key is not set or is still the placeholder
+        if (empty($apiKey) || $apiKey === 'GROQ_API_KEY_PLACEHOLDER') {
+            $response = ruleBasedReply($message, formatContextForFallback($context));
+        } else {
+            // Build prompt
+            $systemPrompt = buildSystemPrompt($user, $context);
+            // Call Groq API
+            $response = callGroq($apiKey, $systemPrompt, $message);
+            
+            // Graceful degradation: if API returns an error, use rule-based answer
+            if (strpos($response, '⚠️ AI Error:') === 0) {
+                $response = "⚠️ AI sedang sibuk, ini jawaban ringkas:\n\n" . ruleBasedReply($message, formatContextForFallback($context));
+            }
+        }
 
         respond([
             'reply'     => $response,
@@ -280,4 +294,132 @@ function callGroq($apiKey, $systemPrompt, $userMessage) {
 
     $data = json_decode($res, true);
     return $data['choices'][0]['message']['content'] ?? 'Maaf, tidak dapat memproses pertanyaan.';
+}
+
+// ── Helper to Load Env variables ───────────────────────────────
+function loadAIEnv() {
+    $paths = [
+        defined('BASE_PATH') ? BASE_PATH . '/.env' : __DIR__ . '/.env',
+        defined('BASE_PATH') ? dirname(BASE_PATH) . '/backend/.env' : dirname(__DIR__) . '/backend/.env',
+        defined('BASE_PATH') ? dirname(BASE_PATH) . '/.env' : dirname(__DIR__) . '/.env'
+    ];
+    foreach ($paths as $path) {
+        if (file_exists($path)) {
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (strpos(trim($line), '#') === 0) continue;
+                $parts = explode('=', $line, 2);
+                if (count($parts) === 2) {
+                    $key = trim($parts[0]);
+                    $val = trim($parts[1]);
+                    $val = trim($val, "\"'");
+                    if (!getenv($key)) {
+                        putenv("$key=$val");
+                        $_ENV[$key] = $val;
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
+// ── Rule-based fallback (no API key / API error) ──────────────
+function ruleBasedReply($msg, $ctx) {
+    $lower = strtolower($msg);
+    
+    if (containsAny($lower, ['kritis', 'critical', 'minimum', 'min stock', 'habis'])) {
+        return "🚨 Berikut kondisi stok kritis saat ini:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['stok', 'stock', 'inventaris', 'barang', 'item'])) {
+        return "📦 Ringkasan inventaris saat ini:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['invoice', 'faktur', 'tagihan', 'pembayaran'])) {
+        return "📄 Status pembayaran & invoice:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['budget', 'anggaran', 'biaya'])) {
+        return "💰 Situasi anggaran:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['po', 'purchase order', 'pembelian', 'pengadaan'])) {
+        return "🛒 Status Purchase Order:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['transaksi', 'masuk', 'keluar', 'inbound', 'outbound'])) {
+        return "🔄 Transaksi bulan ini:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['ringkasan', 'summary', 'laporan', 'rekap'])) {
+        return "📊 Ringkasan sistem WMS LUTFHI:\n\n" . $ctx;
+    }
+    if (containsAny($lower, ['halo', 'hai', 'hello', 'hi', 'selamat'])) {
+        return "👋 Halo! Saya AI Asisten WMS LUTFHI.\n\nSaya bisa bantu cek:\n• 📦 Stok & inventaris\n• 🚨 Item kritis\n• 💰 Anggaran & invoice\n• 🛒 Purchase Order\n• 📊 Laporan transaksi\n\nApa yang ingin Anda tanyakan?";
+    }
+    
+    return "🤖 Saya siap membantu tentang WMS & ERP!\n\nCoba tanya:\n• \"Berapa item yang kritis?\"\n• \"Status invoice belum bayar?\"\n• \"Ringkasan anggaran bulan ini?\"\n\n📊 Data sistem:\n" . $ctx;
+}
+
+function containsAny($str, array $keywords) {
+    foreach ($keywords as $k) {
+        if (strpos($str, $k) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ── Format Context for Fallback ────────────────────────────────
+function formatContextForFallback($ctx) {
+    $out = "";
+    if (!empty($ctx['items'])) {
+        $out .= "📦 INVENTARIS:\n";
+        $count = 0;
+        foreach ($ctx['items'] as $i) {
+            if ($count >= 10) {
+                $out .= "  • ... dan " . (count($ctx['items']) - 10) . " item lainnya.\n";
+                break;
+            }
+            $out .= "  • {$i['name']} (SKU: {$i['sku']}): min_stok={$i['min_stock']}, harga=Rp" . number_format($i['price'], 0, ',', '.') . "\n";
+            $count++;
+        }
+    }
+    
+    if (isset($ctx['critical_count']) && $ctx['critical_count'] > 0) {
+        $out .= "🚨 Item Kritis: {$ctx['critical_count']} item perlu restock segera.\n";
+    }
+    
+    if (!empty($ctx['warehouses'])) {
+        $out .= "\n🏭 GUDANG AKTIF:\n";
+        foreach ($ctx['warehouses'] as $w) {
+            $out .= "  • {$w['name']} ({$w['code']}) — {$w['city']}, PIC: {$w['pic_name']}\n";
+        }
+    }
+    
+    if (!empty($ctx['inbound_stats'])) {
+        $s = $ctx['inbound_stats'];
+        $out .= "\n⬇️ BARANG MASUK: Total={$s['total']}, Pending={$s['pending']}, Confirmed={$s['confirmed']}\n";
+    }
+    if (!empty($ctx['outbound_total'])) {
+        $out .= "⬆️ BARANG KELUAR: Total={$ctx['outbound_total']}\n";
+    }
+    if (!empty($ctx['spb_stats'])) {
+        $s = $ctx['spb_stats'];
+        $out .= "📋 SPB Pending: {$s['pending']} / {$s['total']}\n";
+    }
+    if (!empty($ctx['opname_stats'])) {
+        $s = $ctx['opname_stats'];
+        $out .= "🔄 OPNAME Berlangsung: {$s['in_progress']}\n";
+    }
+    if (!empty($ctx['po_stats'])) {
+        $s = $ctx['po_stats'];
+        $out .= "\n🛒 PURCHASE ORDER: Total={$s['total']}, Draft={$s['draft']}, Sent={$s['sent']}, Complete={$s['complete']}, Nilai=Rp" . number_format($s['total_value'] ?? 0, 0, ',', '.') . "\n";
+    }
+    if (!empty($ctx['invoice_stats'])) {
+        $s = $ctx['invoice_stats'];
+        $out .= "📄 INVOICE: Total={$s['total']}, Unpaid={$s['unpaid']}, Partial={$s['partial']}, Paid={$s['paid']}, Overdue={$s['overdue']}\n";
+        $out .= "   Tagihan=Rp" . number_format($s['total_tagihan'] ?? 0, 0, ',', '.') . ", Terbayar=Rp" . number_format($s['total_terbayar'] ?? 0, 0, ',', '.') . "\n";
+    }
+    if (!empty($ctx['budget_stats'])) {
+        $s = $ctx['budget_stats'];
+        $out .= "💰 BUDGET: {$s['total']} anggaran, Total=Rp" . number_format($s['total_budget'] ?? 0, 0, ',', '.') . ", Terpakai=Rp" . number_format($s['total_used'] ?? 0, 0, ',', '.') . "\n";
+    }
+    
+    return $out;
 }

@@ -90,6 +90,9 @@ services:
       JWT_EXPIRE_HOURS: 8
       REFRESH_EXPIRE_DAYS: 7
       CORS_ORIGINS: http://localhost:3000,https://yourdomain.com
+      MIDTRANS_SERVER_KEY: your_midtrans_server_key_here
+      MIDTRANS_IS_PRODUCTION: "false"
+      MIDTRANS_FINISH_URL: https://wms.alumni590.com/erp/invoices
     ports:
       - "8080:8080"
     depends_on:
