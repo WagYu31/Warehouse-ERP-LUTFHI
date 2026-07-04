@@ -282,8 +282,8 @@ export default function AIChatbot() {
   // ── Theme-aware tokens ────────────────────────────────────
   const T = {
     window:    isLight
-      ? 'background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06);'
-      : 'background:linear-gradient(165deg,rgba(13,18,35,0.98) 0%,rgba(10,14,28,0.99) 100%); border:1px solid rgba(255,255,255,0.08); box-shadow:0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06); backdrop-filter:blur(20px);',
+      ? { background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06)' }
+      : { background: 'linear-gradient(165deg,rgba(13,18,35,0.98) 0%,rgba(10,14,28,0.99) 100%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' },
     messages:  isLight ? 'background:#F8FAFC;' : 'background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,0.1) 100%);',
     inputWrap:  isLight
       ? 'background:#F1F5F9; border-color:#CBD5E1;'
@@ -344,15 +344,13 @@ export default function AIChatbot() {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
-            width:360, maxWidth:'calc(100vw - 2rem)',
-            height: minimized ? 60 : 500, maxHeight:'calc(100vh - 4rem)',
-            cssText: T.window,
-            // inline fallback (cssText doesn't work in React)
-            ...(isLight
-              ? { background:'#FFFFFF', border:'1px solid #E2E8F0', boxShadow:'0 20px 60px rgba(0,0,0,0.12)' }
-              : { background:'linear-gradient(165deg,rgba(13,18,35,0.98) 0%,rgba(10,14,28,0.99) 100%)', border:'1px solid rgba(255,255,255,0.08)', boxShadow:'0 24px 64px rgba(0,0,0,0.6)', backdropFilter:'blur(20px)' }),
-            animation:'chatSlideUp 0.3s cubic-bezier(.22,.68,0,1.2)',
-            transition:'height 0.3s cubic-bezier(.22,.68,0,1.2)',
+            width: 360,
+            maxWidth: 'calc(100vw - 2rem)',
+            height: minimized ? 60 : 500,
+            maxHeight: 'calc(100vh - 4rem)',
+            animation: 'chatSlideUp 0.3s cubic-bezier(.22,.68,0,1.2)',
+            transition: 'height 0.3s cubic-bezier(.22,.68,0,1.2)',
+            ...T.window
           }}>
 
           {/* ── Header ── */}
