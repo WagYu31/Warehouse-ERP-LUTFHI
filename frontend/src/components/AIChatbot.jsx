@@ -91,7 +91,7 @@ function parseMarkdown(text, isLight) {
   html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li class="ml-4 list-disc">$1</li>');
   
   // Wrap list items in <ul>
-  html = html.replace(/(<li.*?>.*?<\/li>\n?)+/g, '<ul class="my-1.5 space-y-0.5">$0</ul>');
+  html = html.replace(/(<li.*?>.*?<\/li>\n?)+/g, '<ul class="my-1.5 space-y-0.5">$&</ul>');
   
   return html;
 }
