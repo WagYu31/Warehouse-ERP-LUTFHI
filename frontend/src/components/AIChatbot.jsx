@@ -344,8 +344,8 @@ export default function AIChatbot() {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
-            width:400, maxWidth:'calc(100vw - 2rem)',
-            height: minimized ? 60 : 560, maxHeight:'calc(100vh - 4rem)',
+            width:360, maxWidth:'calc(100vw - 2rem)',
+            height: minimized ? 60 : 500, maxHeight:'calc(100vh - 4rem)',
             cssText: T.window,
             // inline fallback (cssText doesn't work in React)
             ...(isLight
