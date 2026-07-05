@@ -12,6 +12,17 @@ function handleAI($method, $uri, $user) {
         $message = trim($body['message'] ?? '');
         if (!$message) respondError('Message is required', 400);
 
+        // Try executing command actions directly
+        $actionResult = tryExecuteAIAction($db, $message, $user);
+        if ($actionResult !== null) {
+            respond([
+                'reply'     => $actionResult,
+                'role'      => $user['role'],
+                'timestamp' => date('Y-m-d H:i:s'),
+            ]);
+            return;
+        }
+
         // Load environmental variables (like GROQ_API_KEY)
         loadAIEnv();
 
@@ -437,4 +448,170 @@ function formatContextForFallback($ctx) {
     }
     
     return $out;
+}
+
+// ── Try executing command actions directly ──────────────────────
+function tryExecuteAIAction($db, $message, $user) {
+    $msg = trim($message);
+
+    // Help / Bantuan Command
+    if (preg_match('/^(?:bantuan|help|menu|fitur|perintah)/i', $msg)) {
+        $help = "💡 **MENU PERINTAH AI (ACTION-ORIENTED ASSISTANT)**\n\n";
+        $help .= "Sebagai asisten cerdas, saya dapat mengeksekusi aksi berikut secara instan:\n\n";
+        $help .= "1. **Menyetujui / Menolak SPB**:\n";
+        $help .= "   * Format: `setujui spb [NOMOR_SPB]` atau `tolak spb [NOMOR_SPB]`\n";
+        $help .= "   * Contoh: `setujui spb SPB-20260429-84A996`\n\n";
+        $help .= "2. **Menambah Gudang Baru**:\n";
+        $help .= "   * Format: `tambah gudang [Nama Gudang] kode [Kode] kota [Kota] pic [Nama PIC]`\n";
+        $help .= "   * Contoh: `tambah gudang Gudang Baru Surabaya kode GDG-SRB kota Surabaya pic Andi`\n\n";
+        $help .= "3. **Menambah Barang Baru**:\n";
+        $help .= "   * Format: `tambah barang [Nama Barang] sku [SKU] harga [Harga] stok [MinStok]`\n";
+        $help .= "   * Contoh: `tambah barang Monitor Xiaomi sku XMI-MON harga 2500000 stok 5`\n\n";
+        $help .= "*(Catatan: Aksi penulisan database memerlukan wewenang akun Admin atau Staff)*";
+        return $help;
+    }
+
+    // 1. Approve / Reject SPB
+    if (preg_match('/^(setujui|approve|tolak|reject)\s+spb\s+([A-Za-z0-9\-]+)/i', $msg, $m)) {
+        if (!in_array($user['role'], ['admin', 'staff'])) {
+            return "⚠️ Maaf, Anda tidak memiliki hak akses (role: {$user['role']}) untuk menyetujui/menolak pengajuan SPB.";
+        }
+        
+        $action = strtolower($m[1]);
+        $param  = trim($m[2]);
+        $newStatus = ($action === 'setujui' || $action === 'approve') ? 'approved' : 'rejected';
+        
+        $stmt = $db->prepare("SELECT id, ref_number, status FROM requests WHERE ref_number = ? OR id = ?");
+        $stmt->execute([$param, $param]);
+        $req = $stmt->fetch();
+        
+        if (!$req) {
+            return "⚠️ Pengajuan SPB dengan nomor/ID '{$param}' tidak ditemukan di sistem.";
+        }
+        
+        if ($req['status'] === $newStatus) {
+            return "ℹ️ Pengajuan SPB **{$req['ref_number']}** memang sudah berstatus **" . ($newStatus === 'approved' ? 'disetujui' : 'ditolak') . "**.";
+        }
+        
+        $db->prepare("UPDATE requests SET status=?, approved_by=?, approval_notes='Diproses otomatis via AI Assistant', approved_at=NOW() WHERE id=?")
+           ->execute([$newStatus, $user['sub'], $req['id']]);
+           
+        return "✅ **SPB {$req['ref_number']}** berhasil di-**" . ($newStatus === 'approved' ? 'setujui' : 'tolak') . "** via AI Assistant!";
+    }
+
+    // 2. Tambah Gudang
+    if (preg_match('/^(?:tambah|buat)\s+gudang\s+(.+)$/i', $msg, $m)) {
+        if ($user['role'] !== 'admin') {
+            return "⚠️ Maaf, Anda tidak memiliki hak akses (role: {$user['role']}) untuk membuat gudang baru.";
+        }
+        
+        $rest = $m[1];
+        
+        $code = "";
+        if (preg_match('/kode\s*(?::|)?\s*([A-Za-z0-9\-]+)/i', $rest, $cm)) {
+            $code = trim($cm[1]);
+        }
+        
+        $city = "";
+        if (preg_match('/kota\s*(?::|)?\s*([^,;]+)/i', $rest, $cym)) {
+            $city = trim($cym[1]);
+        }
+        
+        $pic = "";
+        if (preg_match('/pic\s*(?::|)?\s*([^,;]+)/i', $rest, $pm)) {
+            $pic = trim($pm[1]);
+        }
+        
+        $name = $rest;
+        $keywords = ['kode', 'kota', 'pic'];
+        foreach ($keywords as $kw) {
+            $pos = stripos($name, $kw);
+            if ($pos !== false) {
+                $name = substr($name, 0, $pos);
+            }
+        }
+        $name = trim(rtrim($name, ' ,:'));
+        
+        if (empty($name)) {
+            return "⚠️ Nama gudang harus diisi. Contoh: `tambah gudang Gudang Baru kode GDG-NEW`";
+        }
+        
+        if (empty($code)) {
+            $code = "GDG-" . strtoupper(substr(uniqid(), -5));
+        }
+        
+        // Check code duplicate
+        $check = $db->prepare("SELECT id FROM warehouses WHERE code=?");
+        $check->execute([$code]);
+        if ($check->fetch()) {
+            return "⚠️ Kode gudang '{$code}' sudah terdaftar untuk gudang lain.";
+        }
+        
+        $id = generateUUID();
+        $db->prepare("INSERT INTO warehouses(id,code,name,city,pic_name,is_active) VALUES(?,?,?,?,?,1)")
+           ->execute([$id, $code, $name, $city ?: null, $pic ?: null]);
+           
+        return "✅ **Gudang Baru Berhasil Dibuat**:\n\n| Nama Gudang | Kode | Kota | PIC |\n| :--- | :--- | :--- | :--- |\n| {$name} | {$code} | " . ($city ?: '-') . " | " . ($pic ?: '-') . " |";
+    }
+
+    // 3. Tambah Barang
+    if (preg_match('/^(?:tambah|buat)\s+(?:barang|item)\s+(.+)$/i', $msg, $m)) {
+        if (!in_array($user['role'], ['admin', 'staff'])) {
+            return "⚠️ Maaf, Anda tidak memiliki hak akses (role: {$user['role']}) untuk mendaftarkan barang baru.";
+        }
+        
+        $rest = $m[1];
+        
+        $sku = "";
+        if (preg_match('/sku\s*(?::|)?\s*([A-Za-z0-9\-]+)/i', $rest, $sm)) {
+            $sku = trim($sm[1]);
+        }
+        
+        $price = 0;
+        if (preg_match('/harga\s*(?::|)?\s*(?:rp|)?\s*([0-9\.]+)/i', $rest, $pm)) {
+            $price = (float)str_replace('.', '', $pm[1]);
+        }
+        
+        $minStock = 0;
+        if (preg_match('/(?:min\s*|)?stok\s*(?::|)?\s*([0-9]+)/i', $rest, $stm)) {
+            $minStock = (int)$stm[1];
+        }
+        
+        $name = $rest;
+        $keywords = ['sku', 'harga', 'stok', 'min'];
+        foreach ($keywords as $kw) {
+            $pos = stripos($name, $kw);
+            if ($pos !== false) {
+                $name = substr($name, 0, $pos);
+            }
+        }
+        $name = trim(rtrim($name, ' ,:'));
+        
+        if (empty($name)) {
+            return "⚠️ Nama barang harus diisi. Contoh: `tambah barang Laptop Asus sku ASUS-123 harga 15000000`";
+        }
+        
+        if (empty($sku)) {
+            $sku = "ITM-" . strtoupper(substr(uniqid(), -5));
+        }
+        
+        // Check SKU conflict
+        $check = $db->prepare("SELECT id FROM items WHERE sku=?");
+        $check->execute([$sku]);
+        if ($check->fetch()) {
+            return "⚠️ SKU '{$sku}' sudah terdaftar untuk barang lain.";
+        }
+        
+        // Fetch default unit and category
+        $unitId = $db->query("SELECT id FROM units LIMIT 1")->fetchColumn();
+        $categoryId = $db->query("SELECT id FROM categories LIMIT 1")->fetchColumn();
+        
+        $id = generateUUID();
+        $db->prepare("INSERT INTO items(id,sku,name,price,min_stock,unit_id,category_id,is_active) VALUES(?,?,?,?,?,?,?,1)")
+           ->execute([$id, $sku, $name, $price, $minStock, $unitId ?: null, $categoryId ?: null]);
+           
+        return "✅ **Barang Baru Berhasil Terdaftar**:\n\n| Nama Barang | SKU | Min Stok | Harga |\n| :--- | :--- | :--- | :--- |\n| {$name} | {$sku} | {$minStock} | Rp" . number_format($price, 0, ',', '.') . " |";
+    }
+
+    return null; // Not an action command
 }
