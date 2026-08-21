@@ -27,10 +27,12 @@ function handleRequests(string $method, string $uri, array $user, array &$params
                    r.required_date, r.created_at,
                    u.name AS requested_by_name,
                    d.name AS department_name,
+                   w.name AS warehouse_name,
                    (SELECT COUNT(*) FROM request_items WHERE request_id=r.id) AS item_count
             FROM requests r
             LEFT JOIN users u ON u.id=r.requested_by
             LEFT JOIN departments d ON d.id=r.department_id
+            LEFT JOIN warehouses w ON w.id=r.warehouse_id
             $where ORDER BY r.created_at DESC LIMIT $limit OFFSET $offset
         ");
         $stmt->execute($bind);
@@ -41,11 +43,12 @@ function handleRequests(string $method, string $uri, array $user, array &$params
     if ($method === 'GET' && preg_match('#^/requests/([^/]+)$#', $uri, $m)) {
         $stmt = $db->prepare("
             SELECT r.*, u.name AS requested_by_name, d.name AS department_name,
-                   a.name AS approved_by_name
+                   a.name AS approved_by_name, w.name AS warehouse_name
             FROM requests r
             LEFT JOIN users u ON u.id=r.requested_by
             LEFT JOIN users a ON a.id=r.approved_by
             LEFT JOIN departments d ON d.id=r.department_id
+            LEFT JOIN warehouses w ON w.id=r.warehouse_id
             WHERE r.id=?
         ");
         $stmt->execute([$m[1]]);
@@ -77,9 +80,9 @@ function handleRequests(string $method, string $uri, array $user, array &$params
             $ref = generateRef('SPB');
 
             $db->prepare("
-                INSERT INTO requests(id,ref_number,requested_by,department_id,purpose,priority,required_date,notes,status)
-                VALUES(?,?,?,?,?,?,?,?,'pending')
-            ")->execute([$id,$ref,$user['sub'],$b['department_id']??null,$b['purpose']??null,$b['priority']??'normal',$b['required_date']??null,$b['notes']??null]);
+                INSERT INTO requests(id,ref_number,requested_by,department_id,warehouse_id,purpose,priority,required_date,notes,status)
+                VALUES(?,?,?,?,?,?,?,?,?,'pending')
+            ")->execute([$id,$ref,$user['sub'],$b['department_id']??null,$b['warehouse_id']??null,$b['purpose']??null,$b['priority']??'normal',$b['required_date']??null,$b['notes']??null]);
 
             $prep = $db->prepare("INSERT INTO request_items(id,request_id,item_id,qty_requested,notes) VALUES(?,?,?,?,?)");
             foreach ($b['items'] as $item) {
@@ -100,10 +103,45 @@ function handleRequests(string $method, string $uri, array $user, array &$params
         requireRole($user, 'admin','staff');
         $b = getBody();
         $newStatus = $m[2] === 'approve' ? 'approved' : 'rejected';
+        $reqId = $m[1];
 
-        $db->prepare("UPDATE requests SET status=?,approved_by=?,approval_notes=?,approved_at=NOW() WHERE id=?")
-           ->execute([$newStatus,$user['sub'],$b['notes']??null,$m[1]]);
-        respond(['message'=>'Request '.($m[2]==='approve'?'approved':'rejected')]);
+        $db->beginTransaction();
+        try {
+            // Update status
+            $db->prepare("UPDATE requests SET status=?,approved_by=?,approval_notes=?,approved_at=NOW() WHERE id=?")
+               ->execute([$newStatus,$user['sub'],$b['notes']??null,$reqId]);
+
+            // If approved, deduct stock!
+            if ($newStatus === 'approved') {
+                // Get request details
+                $reqStmt = $db->prepare("SELECT warehouse_id FROM requests WHERE id=?");
+                $reqStmt->execute([$reqId]);
+                $req = $reqStmt->fetch();
+                
+                // If warehouse_id is empty, fallback to Gudang Utama
+                $warehouseId = !empty($req['warehouse_id']) ? $req['warehouse_id'] : 'wh-utama-00001-0001-000000000001';
+
+                // Get request items
+                $itemsStmt = $db->prepare("SELECT item_id, qty_requested FROM request_items WHERE request_id=?");
+                $itemsStmt->execute([$reqId]);
+                $items = $itemsStmt->fetchAll();
+
+                $deductStock = $db->prepare("
+                    UPDATE item_stocks SET current_stock=GREATEST(0,current_stock-?), last_updated=NOW()
+                    WHERE item_id=? AND warehouse_id=?
+                ");
+
+                foreach ($items as $item) {
+                    $deductStock->execute([$item['qty_requested'], $item['item_id'], $warehouseId]);
+                }
+            }
+
+            $db->commit();
+            respond(['message'=>'Request '.($m[2]==='approve'?'approved':'rejected')]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            respondError('Failed: '.$e->getMessage(), 500);
+        }
         return;
     }
 
