@@ -33,7 +33,7 @@ export default function ReturnPage() {
   const [modal, setModal]   = useState(false)
   const [detailModal, setDetailModal] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [form, setForm]     = useState({ return_type: 'to_supplier', supplier_id: '', reason: '', notes: '', return_date: '' })
+  const [form, setForm]     = useState({ type: 'to_supplier', supplier_id: '', reason: '', notes: '', return_date: new Date().toISOString().slice(0,10) })
   const [lines, setLines]   = useState([{ item_id: '', qty: 1, warehouse_id: '', unit_price: 0 }])
 
   const load = async () => {
@@ -61,7 +61,8 @@ export default function ReturnPage() {
     if (!valid.length) { toast.error('Minimal 1 item'); return }
     try {
       const res = await api.post('/returns', { ...form, items: valid })
-      toast.success(`Retur ${res.return_number} dibuat!`); setModal(false); load()
+      const data = res.data || res
+      toast.success(`Retur ${data.ref_number || 'baru'} dibuat!`); setModal(false); load()
     } catch (e) { toast.error(e.response?.data?.message || 'Gagal') }
   }
 
@@ -160,20 +161,23 @@ export default function ReturnPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Tipe Retur" required>
-              <Select value={form.return_type} onChange={e => setForm({...form, return_type: e.target.value})}>
+              <Select value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
                 <option value="to_supplier">↩ Ke Supplier</option>
                 <option value="from_customer">↪ Dari Customer</option>
               </Select>
             </FormField>
-            {form.return_type === 'to_supplier' && (
-              <FormField label="Supplier">
-                <Select value={form.supplier_id} onChange={e => setForm({...form, supplier_id: e.target.value})}>
-                  <option value="">Pilih supplier</option>
-                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </Select>
-              </FormField>
-            )}
+            <FormField label="Tanggal Retur" required>
+              <Input type="date" value={form.return_date} onChange={e => setForm({...form, return_date: e.target.value})} />
+            </FormField>
           </div>
+          {form.type === 'to_supplier' && (
+            <FormField label="Supplier">
+              <Select value={form.supplier_id} onChange={e => setForm({...form, supplier_id: e.target.value})}>
+                <option value="">Pilih supplier</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </FormField>
+          )}
 
           <FormField label="Alasan Retur" required>
             <textarea value={form.reason} onChange={e => setForm({...form, reason: e.target.value})}

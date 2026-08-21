@@ -285,6 +285,7 @@ function handleStockTransfers(string $method, string $uri, array $user, array &$
 function handleReturns(string $method, string $uri, array $user, array &$params): void {
     $db = getDB();
 
+    // GET /returns — List all
     if ($method === 'GET' && $uri === '/returns') {
         [$limit, $offset] = paginate();
         $stmt = $db->query("SELECT r.*,s.name AS supplier_name,w.name AS warehouse_name FROM returns r LEFT JOIN suppliers s ON s.id=r.supplier_id LEFT JOIN warehouses w ON w.id=r.warehouse_id ORDER BY r.created_at DESC LIMIT $limit OFFSET $offset");
@@ -292,20 +293,125 @@ function handleReturns(string $method, string $uri, array $user, array &$params)
         return;
     }
 
-    if ($method === 'POST' && $uri === '/returns') {
-        requireRole($user, 'admin','staff','finance_procurement');
-        $b = requireBody(); requireFields($b, ['return_date','type']);
-        $id = generateUUID(); $ref = generateRef('RTN');
-        $db->prepare("INSERT INTO returns(id,ref_number,type,warehouse_id,supplier_id,return_date,reason,status,created_by) VALUES(?,?,?,?,?,?,?,'pending',?)")
-           ->execute([$id,$ref,$b['type'],$b['warehouse_id']??null,$b['supplier_id']??null,$b['return_date'],$b['reason']??null,$user['sub']]);
-        respond(['id'=>$id,'ref_number'=>$ref]);
+    // GET /returns/:id — Detail with items
+    if ($method === 'GET' && preg_match('#^/returns/([^/]+)$#', $uri, $m)) {
+        $stmt = $db->prepare("
+            SELECT r.*, s.name AS supplier_name, w.name AS warehouse_name, u.name AS created_by_name
+            FROM returns r
+            LEFT JOIN suppliers s ON s.id=r.supplier_id
+            LEFT JOIN warehouses w ON w.id=r.warehouse_id
+            LEFT JOIN users u ON u.id=r.created_by
+            WHERE r.id=?
+        ");
+        $stmt->execute([$m[1]]);
+        $ret = $stmt->fetch();
+        if (!$ret) respondError('Return not found', 404);
+
+        $items = $db->prepare("
+            SELECT ri.*, i.name AS item_name, i.sku, w.name AS warehouse_name
+            FROM return_items ri
+            JOIN items i ON i.id=ri.item_id
+            LEFT JOIN warehouses w ON w.id=ri.warehouse_id
+            WHERE ri.return_id=?
+        ");
+        $items->execute([$m[1]]);
+        $ret['items'] = $items->fetchAll();
+        respond($ret);
         return;
     }
 
+    // POST /returns — Create a return
+    if ($method === 'POST' && $uri === '/returns') {
+        requireRole($user, 'admin','staff','finance_procurement');
+        $b = requireBody();
+        
+        $rawType = $b['type'] ?? $b['return_type'] ?? 'from_customer';
+        $mysqlType = ($rawType === 'from_customer' || $rawType === 'inbound') ? 'inbound' : 'outbound';
+        $returnDate = !empty($b['return_date']) ? $b['return_date'] : date('Y-m-d');
+        
+        if (empty($b['items'])) respondError('Minimal 1 item', 400);
+
+        $db->beginTransaction();
+        try {
+            $id = generateUUID(); 
+            $ref = generateRef('RTN');
+            $firstWarehouseId = !empty($b['items'][0]['warehouse_id']) ? $b['items'][0]['warehouse_id'] : null;
+
+            $db->prepare("INSERT INTO returns(id,ref_number,type,warehouse_id,supplier_id,return_date,reason,status,created_by) VALUES(?,?,?,?,?,?,?,'pending',?)")
+               ->execute([$id,$ref,$mysqlType,$firstWarehouseId,$b['supplier_id']??null,$returnDate,$b['reason']??null,$user['sub']]);
+
+            $prepItem = $db->prepare("INSERT INTO return_items(id,return_id,item_id,qty,warehouse_id,unit_price) VALUES(?,?,?,?,?,?)");
+            foreach ($b['items'] as $item) {
+                if (empty($item['item_id']) || empty($item['qty'])) continue;
+                $prepItem->execute([generateUUID(), $id, $item['item_id'], $item['qty'], $item['warehouse_id'] ?? null, $item['unit_price'] ?? 0]);
+            }
+
+            $db->commit();
+            respond(['id'=>$id,'ref_number'=>$ref]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            respondError('Failed to create return: ' . $e->getMessage(), 500);
+        }
+        return;
+    }
+
+    // PUT /returns/:id/approve — Approve return and adjust stock
     if ($method === 'PUT' && preg_match('#^/returns/([^/]+)/approve$#', $uri, $m)) {
         requireRole($user, 'admin');
-        $db->prepare("UPDATE returns SET status='approved',approved_by=? WHERE id=?")->execute([$user['sub'],$m[1]]);
-        respond(['message'=>'Return approved']);
+        $rid = $m[1];
+
+        $stmt = $db->prepare("SELECT type FROM returns WHERE id=?");
+        $stmt->execute([$rid]);
+        $ret = $stmt->fetch();
+        if (!$ret) respondError('Return not found', 404);
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE returns SET status='approved',approved_by=?,updated_at=NOW() WHERE id=?")
+               ->execute([$user['sub'],$rid]);
+
+            $items = $db->prepare("SELECT item_id, qty, warehouse_id FROM return_items WHERE return_id=?");
+            $items->execute([$rid]);
+            $returnItems = $items->fetchAll();
+
+            if ($ret['type'] === 'inbound') {
+                // Inbound return (from customer) -> Increase stock
+                $upsert = $db->prepare("
+                    INSERT INTO item_stocks(id,item_id,warehouse_id,current_stock,last_updated)
+                    VALUES(?,?,?,?,NOW())
+                    ON DUPLICATE KEY UPDATE current_stock=current_stock+VALUES(current_stock), last_updated=NOW()
+                ");
+                foreach ($returnItems as $itm) {
+                    if (empty($itm['warehouse_id'])) continue;
+                    $upsert->execute([generateUUID(), $itm['item_id'], $itm['warehouse_id'], $itm['qty']]);
+                }
+            } else {
+                // Outbound return (to supplier) -> Decrease stock
+                $deduct = $db->prepare("
+                    UPDATE item_stocks SET current_stock=GREATEST(0,current_stock-?), last_updated=NOW()
+                    WHERE item_id=? AND warehouse_id=?
+                ");
+                foreach ($returnItems as $itm) {
+                    if (empty($itm['warehouse_id'])) continue;
+                    $deduct->execute([$itm['qty'], $itm['item_id'], $itm['warehouse_id']]);
+                }
+            }
+
+            $db->commit();
+            respond(['message'=>'Return approved, stock updated']);
+        } catch (Exception $e) {
+            $db->rollBack();
+            respondError('Approve failed: ' . $e->getMessage(), 500);
+        }
+        return;
+    }
+
+    // PUT /returns/:id/reject — Reject return
+    if ($method === 'PUT' && preg_match('#^/returns/([^/]+)/reject$#', $uri, $m)) {
+        requireRole($user, 'admin');
+        $db->prepare("UPDATE returns SET status='rejected',approved_by=?,updated_at=NOW() WHERE id=?")
+           ->execute([$user['sub'],$m[1]]);
+        respond(['message'=>'Return rejected']);
         return;
     }
 
