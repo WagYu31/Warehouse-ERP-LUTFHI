@@ -79,7 +79,25 @@ function handleOutbound(string $method, string $uri, array $user, array &$params
                 VALUES(?,?,?,?,?,?,?,?,'confirmed')
             ")->execute([$id,$ref,$b['warehouse_id'],$user['sub'],$b['outbound_date'],$b['destination']??null,$requestId,$b['notes']??null]);
 
+            // Otomatis buat Surat Jalan (Delivery Order) berstatus 'dispatched'
+            $deliveryId = generateUUID();
+            $deliveryRef = generateRef('SJ');
+            $db->prepare("
+                INSERT INTO delivery_orders(id,ref_number,warehouse_id,created_by,delivery_date,destination,notes,status,approved_by)
+                VALUES(?,?,?,?,?,?,?,'dispatched',?)
+            ")->execute([
+                $deliveryId,
+                $deliveryRef,
+                $b['warehouse_id'],
+                $user['sub'],
+                $b['outbound_date'],
+                $b['destination'] ?? null,
+                "Otomatis dari Barang Keluar: " . $ref . (!empty($b['notes']) ? " - " . $b['notes'] : ""),
+                $user['sub']
+            ]);
+
             $prepItem = $db->prepare("INSERT INTO outbound_items(id,transaction_id,item_id,qty_issued,batch_number,notes) VALUES(?,?,?,?,?,?)");
+            $prepDeliveryItem = $db->prepare("INSERT INTO delivery_items(id,delivery_id,item_id,qty) VALUES(?,?,?,?)");
             $deductStock = $db->prepare("
                 UPDATE item_stocks SET current_stock=GREATEST(0,current_stock-?), last_updated=NOW()
                 WHERE item_id=? AND warehouse_id=?
@@ -88,11 +106,12 @@ function handleOutbound(string $method, string $uri, array $user, array &$params
             foreach ($b['items'] as $item) {
                 if (empty($item['item_id']) || empty($item['qty_issued'])) continue;
                 $prepItem->execute([generateUUID(),$id,$item['item_id'],$item['qty_issued'],$item['batch_number']??null,$item['notes']??null]);
+                $prepDeliveryItem->execute([generateUUID(),$deliveryId,$item['item_id'],$item['qty_issued']]);
                 $deductStock->execute([$item['qty_issued'],$item['item_id'],$b['warehouse_id']]);
             }
 
             $db->commit();
-            respond(['id'=>$id,'ref_number'=>$ref,'message'=>'Outbound created']);
+            respond(['id'=>$id,'ref_number'=>$ref,'message'=>'Outbound created & Surat Jalan generated']);
         } catch (Exception $e) {
             $db->rollBack();
             respondError('Failed: '.$e->getMessage(), 500);
