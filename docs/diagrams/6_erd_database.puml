@@ -1,0 +1,620 @@
+@startuml WMS_LUTFHI_ERD
+!theme cerulean
+title **WMS LUTFHI - Entity Relationship Diagram**\nStruktur Database Sistem
+
+skinparam linetype ortho
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #34495E
+}
+
+' ══════════════════════════════════════
+' MASTER DATA ENTITIES
+' ══════════════════════════════════════
+
+package "🏗️ Master Data" #E3F2FD {
+  entity "**warehouses**" as warehouses {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *code : VARCHAR(20) <<UNIQUE>>
+    *name : VARCHAR(100)
+    address : TEXT
+    city : VARCHAR(100)
+    pic_name : VARCHAR(100)
+    pic_phone : VARCHAR(20)
+    is_active : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**departments**" as departments {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(100)
+    head_name : VARCHAR(100)
+    created_at : TIMESTAMP
+  }
+
+  entity "**categories**" as categories {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(100)
+    description : TEXT
+    is_active : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**units**" as units {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(50)
+    *abbreviation : VARCHAR(10)
+    is_active : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**suppliers**" as suppliers {
+    *id : VARCHAR(36) <<PK>>
+    --
+    code : VARCHAR(30) <<UNIQUE>>
+    *name : VARCHAR(150)
+    email : VARCHAR(150)
+    phone : VARCHAR(30)
+    address : TEXT
+    city : VARCHAR(100)
+    npwp : VARCHAR(30)
+    is_pkp : BOOLEAN
+    payment_terms : INTEGER
+    rating : DECIMAL(3,1)
+    is_active : BOOLEAN
+    is_blacklisted : BOOLEAN
+    notes : TEXT
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**locations**" as locations {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #warehouse_id : VARCHAR(36) <<FK>>
+    zone : VARCHAR(50)
+    rack : VARCHAR(50)
+    bin : VARCHAR(50)
+    description : TEXT
+    created_at : TIMESTAMP
+  }
+
+  entity "**tax_configs**" as tax_configs {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(50)
+    *rate : DECIMAL(5,2)
+    is_default : BOOLEAN
+    is_active : BOOLEAN
+    created_at : TIMESTAMP
+  }
+}
+
+' ══════════════════════════════════════
+' USER MANAGEMENT
+' ══════════════════════════════════════
+
+package "👥 User Management" #FFF3E0 {
+  entity "**users**" as users {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(100)
+    *email : VARCHAR(150) <<UNIQUE>>
+    *password_hash : VARCHAR(255)
+    *role : ENUM
+    #department_id : VARCHAR(36) <<FK>>
+    phone : VARCHAR(20)
+    avatar_url : VARCHAR(500)
+    is_active : BOOLEAN
+    last_login_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**user_warehouses**" as user_warehouses {
+    *#user_id : VARCHAR(36) <<PK,FK>>
+    *#warehouse_id : VARCHAR(36) <<PK,FK>>
+    --
+    is_primary : BOOLEAN
+  }
+}
+
+' ══════════════════════════════════════
+' INVENTORY
+' ══════════════════════════════════════
+
+package "📦 Inventaris" #E8F5E9 {
+  entity "**items**" as items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *sku : VARCHAR(50) <<UNIQUE>>
+    *name : VARCHAR(200)
+    description : TEXT
+    #category_id : VARCHAR(36) <<FK>>
+    #unit_id : VARCHAR(36) <<FK>>
+    min_stock : INTEGER
+    max_stock : INTEGER
+    price : DECIMAL(15,2)
+    photo_url : VARCHAR(500)
+    barcode : VARCHAR(100)
+    qr_code : VARCHAR(500)
+    is_active : BOOLEAN
+    batch_tracking : BOOLEAN
+    expired_tracking : BOOLEAN
+    alert_days_before : INTEGER
+    outbound_method : ENUM
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**item_stocks**" as item_stocks {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #item_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    current_stock : INTEGER
+    last_updated : TIMESTAMP
+  }
+
+  entity "**item_batches**" as item_batches {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #item_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    *batch_number : VARCHAR(100)
+    expired_date : DATE
+    *qty_received : INTEGER
+    *qty_remaining : INTEGER
+    #inbound_transaction_id : VARCHAR(36) <<FK>>
+    status : ENUM
+    notes : TEXT
+    created_at : TIMESTAMP
+  }
+
+  entity "**reorder_configs**" as reorder_configs {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #item_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    *reorder_point : INTEGER
+    *reorder_qty : INTEGER
+    #preferred_supplier_id : VARCHAR(36) <<FK>>
+    auto_create_pr : BOOLEAN
+  }
+
+  entity "**price_history**" as price_history {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #item_id : VARCHAR(36) <<FK>>
+    #supplier_id : VARCHAR(36) <<FK>>
+    *unit_price : DECIMAL(15,2)
+    #po_id : VARCHAR(36) <<FK>>
+    recorded_at : TIMESTAMP
+  }
+}
+
+' ══════════════════════════════════════
+' TRANSACTIONS
+' ══════════════════════════════════════
+
+package "🔄 Transaksi" #F3E5F5 {
+  entity "**inbound_transactions**" as inbound_tx {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *ref_number : VARCHAR(50) <<UNIQUE>>
+    #supplier_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    #received_by : VARCHAR(36) <<FK>>
+    *received_date : DATE
+    po_number : VARCHAR(50)
+    #po_id : VARCHAR(36) <<FK>>
+    notes : TEXT
+    photo_url : VARCHAR(500)
+    status : ENUM
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**inbound_items**" as inbound_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #transaction_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    #location_id : VARCHAR(36) <<FK>>
+    qty_ordered : INTEGER
+    *qty_received : INTEGER
+    unit_price : DECIMAL(15,2)
+    condition : VARCHAR(50)
+    batch_number : VARCHAR(100)
+    expired_date : DATE
+    notes : TEXT
+  }
+
+  entity "**outbound_transactions**" as outbound_tx {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *ref_number : VARCHAR(50) <<UNIQUE>>
+    #request_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    #processed_by : VARCHAR(36) <<FK>>
+    *outbound_date : DATE
+    notes : TEXT
+    status : ENUM
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**outbound_items**" as outbound_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #transaction_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    #location_id : VARCHAR(36) <<FK>>
+    #batch_id : VARCHAR(36) <<FK>>
+    *qty : INTEGER
+    notes : TEXT
+  }
+}
+
+' ══════════════════════════════════════
+' SPB & PROCUREMENT
+' ══════════════════════════════════════
+
+package "🛒 Procurement" #FFEBEE {
+  entity "**requests**" as requests {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *spb_number : VARCHAR(50) <<UNIQUE>>
+    #requester_id : VARCHAR(36) <<FK>>
+    #department_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    *needed_date : DATE
+    *purpose : TEXT
+    priority : VARCHAR(10)
+    status : ENUM
+    notes : TEXT
+    attachment_url : VARCHAR(500)
+    #reviewed_by : VARCHAR(36) <<FK>>
+    reviewed_at : TIMESTAMP
+    review_notes : TEXT
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**request_items**" as request_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #request_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    *qty_requested : INTEGER
+    qty_approved : INTEGER
+    notes : TEXT
+  }
+
+  entity "**purchase_orders**" as purchase_orders {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *po_number : VARCHAR(50) <<UNIQUE>>
+    #supplier_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    #created_by : VARCHAR(36) <<FK>>
+    expected_date : DATE
+    status : ENUM
+    subtotal : DECIMAL(15,2)
+    discount_amount : DECIMAL(15,2)
+    tax_rate : DECIMAL(5,2)
+    tax_amount : DECIMAL(15,2)
+    total_amount : DECIMAL(15,2)
+    notes : TEXT
+    #approved_by : VARCHAR(36) <<FK>>
+    approved_at : TIMESTAMP
+    sent_at : TIMESTAMP
+    email_sent : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**purchase_order_items**" as po_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #po_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    *qty_ordered : INTEGER
+    qty_received : INTEGER
+    *unit_price : DECIMAL(15,2)
+    total_price : DECIMAL(15,2) <<GENERATED>>
+    notes : TEXT
+  }
+}
+
+' ══════════════════════════════════════
+' FINANCE
+' ══════════════════════════════════════
+
+package "💰 Keuangan" #FFF9C4 {
+  entity "**invoices**" as invoices {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *invoice_number : VARCHAR(100)
+    #po_id : VARCHAR(36) <<FK>>
+    #supplier_id : VARCHAR(36) <<FK>>
+    *invoice_date : DATE
+    *due_date : DATE
+    subtotal : DECIMAL(15,2)
+    discount_amount : DECIMAL(15,2)
+    dpp : DECIMAL(15,2)
+    tax_rate : DECIMAL(5,2)
+    tax_amount : DECIMAL(15,2)
+    *total_amount : DECIMAL(15,2)
+    paid_amount : DECIMAL(15,2)
+    remaining_amount : DECIMAL(15,2) <<GENERATED>>
+    status : ENUM
+    faktur_pajak_number : VARCHAR(50)
+    supplier_is_pkp : BOOLEAN
+    notes : TEXT
+    #created_by : VARCHAR(36) <<FK>>
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**payments**" as payments {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #invoice_id : VARCHAR(36) <<FK>>
+    *amount : DECIMAL(15,2)
+    *payment_date : DATE
+    payment_method : ENUM
+    reference_number : VARCHAR(100)
+    notes : TEXT
+    #created_by : VARCHAR(36) <<FK>>
+    created_at : TIMESTAMP
+  }
+
+  entity "**budgets**" as budgets {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *name : VARCHAR(100)
+    period_type : VARCHAR(20)
+    *period_start : DATE
+    *period_end : DATE
+    #department_id : VARCHAR(36) <<FK>>
+    *total_amount : DECIMAL(15,2)
+    spent_amount : DECIMAL(15,2)
+    notes : TEXT
+    #created_by : VARCHAR(36) <<FK>>
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+}
+
+' ══════════════════════════════════════
+' WAREHOUSE OPS
+' ══════════════════════════════════════
+
+package "🏭 Operasi Gudang" #E0F7FA {
+  entity "**stock_opnames**" as stock_opnames {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *ref_number : VARCHAR(50) <<UNIQUE>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    #conducted_by : VARCHAR(36) <<FK>>
+    start_date : TIMESTAMP
+    end_date : TIMESTAMP
+    status : VARCHAR(20)
+    notes : TEXT
+    created_at : TIMESTAMP
+  }
+
+  entity "**opname_items**" as opname_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #opname_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    #location_id : VARCHAR(36) <<FK>>
+    system_qty : INTEGER
+    physical_qty : INTEGER
+    difference : INTEGER <<GENERATED>>
+    notes : TEXT
+  }
+
+  entity "**stock_transfers**" as stock_transfers {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *ref_number : VARCHAR(50) <<UNIQUE>>
+    #from_warehouse_id : VARCHAR(36) <<FK>>
+    #to_warehouse_id : VARCHAR(36) <<FK>>
+    #created_by : VARCHAR(36) <<FK>>
+    #confirmed_by_sender : VARCHAR(36) <<FK>>
+    #confirmed_by_receiver : VARCHAR(36) <<FK>>
+    status : ENUM
+    notes : TEXT
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**stock_transfer_items**" as st_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #transfer_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    *qty : INTEGER
+    notes : TEXT
+  }
+
+  entity "**delivery_orders**" as delivery_orders {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *do_number : VARCHAR(50) <<UNIQUE>>
+    #outbound_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    driver_name : VARCHAR(100)
+    vehicle_plate : VARCHAR(20)
+    recipient_name : VARCHAR(100)
+    recipient_address : TEXT
+    recipient_phone : VARCHAR(30)
+    status : ENUM
+    delivered_at : TIMESTAMP
+    notes : TEXT
+    #created_by : VARCHAR(36) <<FK>>
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**returns**" as returns {
+    *id : VARCHAR(36) <<PK>>
+    --
+    *return_number : VARCHAR(50) <<UNIQUE>>
+    type : ENUM
+    #reference_id : VARCHAR(36) <<FK>>
+    #warehouse_id : VARCHAR(36) <<FK>>
+    reason : TEXT
+    status : ENUM
+    notes : TEXT
+    #created_by : VARCHAR(36) <<FK>>
+    #reviewed_by : VARCHAR(36) <<FK>>
+    reviewed_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "**return_items**" as return_items {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #return_id : VARCHAR(36) <<FK>>
+    #item_id : VARCHAR(36) <<FK>>
+    *qty : INTEGER
+    condition : VARCHAR(50)
+    notes : TEXT
+  }
+}
+
+' ══════════════════════════════════════
+' SYSTEM
+' ══════════════════════════════════════
+
+package "⚙️ Sistem" #F5F5F5 {
+  entity "**audit_logs**" as audit_logs {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #user_id : VARCHAR(36) <<FK>>
+    user_name : VARCHAR(100)
+    *action : VARCHAR(20)
+    *module : VARCHAR(50)
+    table_name : VARCHAR(50)
+    record_id : VARCHAR(100)
+    old_data : JSON
+    new_data : JSON
+    ip_address : VARCHAR(45)
+    user_agent : TEXT
+    created_at : TIMESTAMP
+  }
+
+  entity "**notifications**" as notifications {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #user_id : VARCHAR(36) <<FK>>
+    *type : VARCHAR(50)
+    *title : VARCHAR(200)
+    *message : TEXT
+    link : VARCHAR(500)
+    is_read : BOOLEAN
+    created_at : TIMESTAMP
+  }
+
+  entity "**expiry_alerts**" as expiry_alerts {
+    *id : VARCHAR(36) <<PK>>
+    --
+    #item_id : VARCHAR(36) <<FK>>
+    #batch_id : VARCHAR(36) <<FK>>
+    *alert_type : ENUM
+    sent_at : TIMESTAMP
+    is_acknowledged : BOOLEAN
+  }
+}
+
+' ══════════════════════════════════════
+' RELATIONSHIPS
+' ══════════════════════════════════════
+
+' Master relations
+locations }o--|| warehouses
+users }o--o| departments
+user_warehouses }o--|| users
+user_warehouses }o--|| warehouses
+
+' Item relations
+items }o--o| categories
+items }o--o| units
+item_stocks }o--|| items
+item_stocks }o--|| warehouses
+item_batches }o--|| items
+item_batches }o--|| warehouses
+reorder_configs }o--|| items
+reorder_configs }o--|| warehouses
+
+' Inbound relations
+inbound_tx }o--o| suppliers
+inbound_tx }o--|| warehouses
+inbound_items }o--|| inbound_tx
+inbound_items }o--|| items
+
+' Outbound relations
+outbound_tx }o--o| requests
+outbound_tx }o--|| warehouses
+outbound_items }o--|| outbound_tx
+outbound_items }o--|| items
+
+' SPB / Request
+requests }o--|| users
+requests }o--o| departments
+requests }o--|| warehouses
+request_items }o--|| requests
+request_items }o--|| items
+
+' Purchase Order
+purchase_orders }o--|| suppliers
+purchase_orders }o--|| warehouses
+po_items }o--|| purchase_orders
+po_items }o--|| items
+
+' Invoice & Payment
+invoices }o--o| purchase_orders
+invoices }o--|| suppliers
+payments }o--|| invoices
+
+' Budget
+budgets }o--o| departments
+
+' Opname
+stock_opnames }o--|| warehouses
+opname_items }o--|| stock_opnames
+opname_items }o--|| items
+
+' Transfer
+stock_transfers }o--|| warehouses : from
+stock_transfers }o--|| warehouses : to
+st_items }o--|| stock_transfers
+st_items }o--|| items
+
+' Delivery & Returns
+delivery_orders }o--o| outbound_tx
+delivery_orders }o--|| warehouses
+returns }o--|| warehouses
+return_items }o--|| returns
+return_items }o--|| items
+
+' System
+notifications }o--|| users
+expiry_alerts }o--|| items
+expiry_alerts }o--o| item_batches
+price_history }o--|| items
+
+@enduml

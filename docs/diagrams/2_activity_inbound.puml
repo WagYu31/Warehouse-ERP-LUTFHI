@@ -1,0 +1,83 @@
+@startuml WMS_LUTFHI_Activity_Inbound
+!theme cerulean
+title **WMS LUTFHI - Activity Diagram**\nAlur Proses Barang Masuk (Inbound)
+
+|#FFE0B2| Staff Gudang |
+|#E1F5FE| Sistem WMS |
+|#E8F5E9| Supplier |
+
+|Supplier|
+start
+:Kirim barang\nbeserta surat jalan;
+
+|Staff Gudang|
+:Terima barang\ndi gudang;
+:Periksa fisik barang\n(jumlah, kondisi, expiry);
+
+if (Barang sesuai\nPO/surat jalan?) then (Ya)
+  :Buat transaksi\n**Barang Masuk**;
+  
+  |Sistem WMS|
+  :Generate ref_number\n(INB-YYYYMMDD-XXX);
+  
+  |Staff Gudang|
+  :Input detail item:
+  - Qty diterima
+  - Harga satuan
+  - Batch number
+  - Tanggal kadaluarsa
+  - Lokasi penyimpanan
+  - Kondisi barang;
+  
+  :Foto bukti penerimaan\n(opsional);
+  
+  :Simpan sebagai\nstatus "**Pending**";
+  
+  |Sistem WMS|
+  :Validasi data\n& simpan ke database;
+  
+  |Staff Gudang|
+  :Review data\nyang sudah diinput;
+  
+  if (Data sudah benar?) then (Ya)
+    :Konfirmasi penerimaan\n(status → "**Confirmed**");
+    
+    |Sistem WMS|
+    :Update stok gudang\n(item_stocks.current_stock += qty);
+    :Buat record batch\n(item_batches);
+    :Catat riwayat harga\n(price_history);
+    :Kirim notifikasi\nke Admin & Finance;
+    
+    if (Stok item > min_stock?) then (Ya)
+      :Hapus alert\nstok minimum;
+    else (Tidak)
+      :Pertahankan alert;
+    endif
+    
+    :Transaksi **SELESAI** ✅;
+    
+  else (Tidak)
+    :Edit data yang salah;
+    note right: Bisa diedit\nselama status Pending
+    :Kembali ke review;
+  endif
+  
+else (Tidak sesuai)
+  :Catat perbedaan\n(selisih qty/kondisi);
+  
+  if (Tetap terima\nsebagian?) then (Ya)
+    :Input qty aktual\nyang diterima;
+    :Buat catatan\nketidaksesuaian;
+    :Proses sebagai\npenerimaan parsial;
+  else (Tidak)
+    :Tolak seluruh\nkiriman;
+    :Buat laporan\npenolakan;
+    
+    |Supplier|
+    :Terima barang\nkembali;
+  endif
+endif
+
+stop
+
+@enduml

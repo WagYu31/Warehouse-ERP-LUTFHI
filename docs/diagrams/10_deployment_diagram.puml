@@ -1,0 +1,88 @@
+@startuml WMS_LUTFHI_Deployment_Diagram
+!theme cerulean
+title **WMS LUTFHI - Deployment Diagram**\nInfrastruktur Produksi
+
+skinparam nodeStyle rectangle
+
+node "🖥️ Client Device" as Client {
+  component [Chrome / Safari\nBrowser] as Browser
+  component [React SPA\n(Built bundle)] as SPA
+}
+
+cloud "🌐 Internet" as Internet
+
+node "🏢 DomaiNesia Server\n(Shared Hosting)" as Server {
+  
+  node "Web Server\n(LiteSpeed)" as WebServer {
+    artifact "wms.alumni590.com/" as FrontendDir {
+      file "index.html" as HTML
+      file "assets/*.js" as JS
+      file "assets/*.css" as CSS
+    }
+    
+    artifact "wms.alumni590.com/api/" as APIDir {
+      file "index.php\n(Router)" as Router
+      file "config/database.php" as DBConfig
+      file "middleware/auth.php" as AuthPHP
+      
+      package "routes/" {
+        file "auth.php"
+        file "master.php"
+        file "items.php"
+        file "inbound.php"
+        file "outbound.php"
+        file "erp.php"
+        file "opname.php"
+        file "backup.php"
+        file "ai.php"
+        file "..."
+      }
+      
+      package "helpers/" {
+        file "response.php"
+        file "jwt.php"
+        file "uuid.php"
+      }
+    }
+  }
+  
+  database "MySQL 8.0\n(localhost)" as MySQLDB {
+    storage "30+ Tables" as Tables
+  }
+}
+
+node "☁️ External Services" as External {
+  component [Google Gemini\nAI API] as Gemini
+}
+
+node "💻 Developer Machine\n(macOS)" as DevMachine {
+  component [VS Code /\nGemini Antigravity] as IDE
+  component [Git CLI] as Git
+  component [Node.js\n(npm run build)] as NodeJS
+}
+
+cloud "🐙 GitHub" as GitHub {
+  artifact "WagYu31/\nWarehouse-ERP-LUTFHI\n(main branch)" as Repo
+}
+
+' ══════════════════════════════════════
+' CONNECTIONS
+' ══════════════════════════════════════
+
+Browser --> Internet : HTTPS
+Internet --> WebServer : Port 443
+
+SPA --> Browser : Renders in
+HTML --> SPA : Serves
+
+WebServer --> MySQLDB : PDO\n(localhost:3306)
+
+APIDir ..> External : HTTPS API calls
+
+' Dev workflow
+IDE --> Git : commit
+Git --> GitHub : git push
+GitHub --> Server : git pull\n(manual deploy)
+NodeJS --> FrontendDir : npm run build\n→ cp dist/
+
+@enduml

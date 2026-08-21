@@ -1,0 +1,121 @@
+@startuml WMS_LUTFHI_Activity_Purchase_Order
+!theme cerulean
+title **WMS LUTFHI - Activity Diagram**\nAlur Proses Purchase Order & Invoice
+
+|#E3F2FD| Finance & Procurement |
+|#FFF3E0| Admin |
+|#F3E5F5| Sistem WMS |
+|#E8F5E9| Supplier |
+
+|Finance & Procurement|
+start
+:Identifikasi kebutuhan\npengadaan barang;
+note right
+  Bisa dari:
+  - Alert stok minimum
+  - Permintaan manual
+  - Auto reorder
+end note
+
+:Buat **Purchase Order (PO)**;
+:Pilih supplier\n& gudang tujuan;
+:Input item yang dipesan:
+- Nama item
+- Qty
+- Harga satuan;
+
+|Sistem WMS|
+:Generate PO number\n(PO-YYYYMMDD-XXX);
+:Hitung otomatis:
+- Subtotal
+- Diskon
+- DPP
+- PPN (11%)
+- Total;
+:Simpan PO\n(status → "**Draft**");
+
+|Finance & Procurement|
+:Review PO draft;
+
+if (PO sudah benar?) then (Ya)
+  :Kirim untuk approval;
+  
+  |Admin|
+  :Review PO;
+  
+  if (Setuju?) then (Approve ✅)
+    :Approve PO;
+    
+    |Sistem WMS|
+    :Status PO → "**Sent**";
+    :Potong saldo budget\ndepartemen terkait;
+    :Catat di audit log;
+    
+    |Finance & Procurement|
+    :Kirim PO ke supplier\n(via email/cetak);
+    
+    |Supplier|
+    :Terima PO;
+    :Proses pesanan;
+    :Kirim barang\nke gudang;
+    
+    |Sistem WMS|
+    :Staff catat\nBarang Masuk (Inbound);
+    :Link inbound → PO;
+    :Update PO qty_received;
+    
+    if (Semua item diterima?) then (Ya)
+      :Status PO → "**Complete**" ✅;
+    else (Sebagian)
+      :Status PO → "**Partial**";
+      note right: Menunggu\nsisa pengiriman
+    endif
+    
+    ' ── INVOICE ──
+    |Finance & Procurement|
+    :Buat **Invoice**\ndari PO;
+    
+    |Sistem WMS|
+    :Generate invoice number;
+    :Hitung total:\n- Subtotal, DPP\n- PPN, Total;
+    :Set due_date\n(berdasarkan payment_terms);
+    :Status → "**Unpaid**";
+    
+    |Finance & Procurement|
+    :Lakukan pembayaran\nke supplier;
+    :Catat pembayaran:
+    - Jumlah bayar
+    - Metode (transfer/cash/cheque)
+    - Nomor referensi;
+    
+    |Sistem WMS|
+    if (Sudah lunas?) then (Ya)
+      :Status invoice → "**Paid**" ✅;
+    else (Sebagian)
+      :Status → "**Partial**";
+      :Hitung sisa tagihan;
+    endif
+    
+    if (Melewati due_date?) then (Ya)
+      :Status → "**Overdue**" ⚠️;
+      :Kirim alert ke Finance;
+    else (Tidak)
+      :Masih dalam\ntenggat waktu;
+    endif
+    
+  else (Tolak ❌)
+    |Admin|
+    :Tolak PO;
+    
+    |Sistem WMS|
+    :Status → "**Cancelled**";
+    :Notifikasi ke Finance;
+  endif
+  
+else (Belum benar)
+  :Edit PO draft;
+endif
+
+stop
+
+@enduml

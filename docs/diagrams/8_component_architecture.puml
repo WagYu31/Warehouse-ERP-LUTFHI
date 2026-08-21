@@ -1,0 +1,115 @@
+@startuml WMS_LUTFHI_Component_Diagram
+!theme cerulean
+title **WMS LUTFHI - Component Diagram**\nArsitektur Sistem
+
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+
+package "🖥️ Client (Browser)" #E3F2FD {
+  component [React Frontend\n(Vite + JSX)] as FE {
+    component [Dashboard] as FE_Dashboard
+    component [Inventaris] as FE_Inventory
+    component [Barang Masuk] as FE_Inbound
+    component [Barang Keluar] as FE_Outbound
+    component [Permintaan (SPB)] as FE_Request
+    component [Purchase Order] as FE_PO
+    component [Invoice & Payment] as FE_Invoice
+    component [Stock Opname] as FE_Opname
+    component [Transfer Stok] as FE_Transfer
+    component [Surat Jalan] as FE_Delivery
+    component [Retur] as FE_Return
+    component [Master Data] as FE_Master
+    component [Pengguna] as FE_Users
+    component [Backup Data] as FE_Backup
+    component [Laporan] as FE_Report
+    component [AI Chatbot] as FE_AI
+  }
+
+  component [Axios HTTP Client\n(api.js)] as Axios
+  component [Zustand Store\n(authStore)] as Store
+  component [React Router\n(Navigation)] as Router
+}
+
+package "🌐 Web Server (DomaiNesia)" #FFF3E0 {
+  component [Nginx / LiteSpeed\n(wms.alumni590.com)] as WebServer
+
+  package "Backend API (PHP)" #FFEBEE {
+    component [Router\n(index.php)] as PHPRouter
+    component [Auth Middleware\n(JWT Verify)] as AuthMW
+    component [Response Helpers\n(JSON)] as Helpers
+
+    package "Route Handlers" {
+      component [auth.php] as H_Auth
+      component [dashboard.php] as H_Dashboard
+      component [items.php] as H_Items
+      component [inbound.php] as H_Inbound
+      component [outbound.php] as H_Outbound
+      component [requests.php] as H_Requests
+      component [erp.php\n(PO, Invoice, Payment)] as H_ERP
+      component [master.php\n(Warehouse, Dept,\nCategory, Unit,\nSupplier, Location)] as H_Master
+      component [opname.php] as H_Opname
+      component [users.php] as H_Users
+      component [reports.php] as H_Reports
+      component [backup.php] as H_Backup
+      component [notifications.php] as H_Notif
+      component [ai.php] as H_AI
+      component [delivery.php] as H_Delivery
+    }
+  }
+}
+
+package "🗄️ Database Server" #E8F5E9 {
+  database "MySQL 8.0\n(30+ tabel)" as MySQL {
+    component [Master Data\nTables] as DB_Master
+    component [Transaction\nTables] as DB_TX
+    component [Finance\nTables] as DB_Finance
+    component [System\nTables] as DB_System
+  }
+}
+
+cloud "🤖 External APIs" #F3E5F5 {
+  component [Google Gemini\nAI API] as GeminiAPI
+}
+
+' ══════════════════════════════════════
+' CONNECTIONS
+' ══════════════════════════════════════
+
+' Client → Server
+FE --> Axios : HTTP calls
+Axios --> WebServer : HTTPS requests\n(Bearer JWT)
+Store --> FE : Auth state
+
+' Web Server → PHP
+WebServer --> PHPRouter : Route matching
+PHPRouter --> AuthMW : Verify JWT token
+AuthMW --> H_Auth : /auth/*
+AuthMW --> H_Dashboard : /dashboard/*
+AuthMW --> H_Items : /items/*
+AuthMW --> H_Inbound : /inbound/*
+AuthMW --> H_Outbound : /outbound/*
+AuthMW --> H_Requests : /requests/*
+AuthMW --> H_ERP : /purchase-orders/*\n/invoices/*\n/payments/*
+AuthMW --> H_Master : /warehouses/*\n/departments/*\n/categories/*\n/units/*\n/suppliers/*\n/locations/*
+AuthMW --> H_Opname : /stock-opname/*
+AuthMW --> H_Users : /users/*
+AuthMW --> H_Reports : /reports/*
+AuthMW --> H_Backup : /backup/*
+AuthMW --> H_Notif : /notifications/*
+AuthMW --> H_AI : /ai/*
+AuthMW --> H_Delivery : /delivery-orders/*
+PHPRouter --> Helpers : JSON responses
+
+' PHP → Database
+H_Auth --> MySQL : PDO queries
+H_Items --> MySQL
+H_Inbound --> MySQL
+H_ERP --> MySQL
+H_Master --> MySQL
+H_Users --> MySQL
+H_Backup --> MySQL
+
+' PHP → External
+H_AI --> GeminiAPI : Gemini API calls
+
+@enduml

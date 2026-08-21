@@ -1,0 +1,357 @@
+@startuml WMS_LUTFHI_Class_Diagram
+!theme cerulean
+title **WMS LUTFHI - Class Diagram**\nStruktur Model & Service Layer
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+}
+
+' ══════════════════════════════════════
+' ENUMS
+' ══════════════════════════════════════
+
+enum UserRole {
+  ADMIN
+  STAFF
+  REQUESTER
+  FINANCE_PROCUREMENT
+  MANAGER
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum POStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  COMPLETE
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum RequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  IN_PROCESS
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum TransferStatus {
+  PENDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum ReturnType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum OutboundMethod {
+  FEFO
+  FIFO
+  MANUAL
+}
+
+enum BatchStatus {
+  ACTIVE
+  QUARANTINE
+  DISPOSED
+}
+
+' ══════════════════════════════════════
+' MODEL CLASSES
+' ══════════════════════════════════════
+
+package "Model Layer" #E3F2FD {
+
+  class User {
+    -id : String <<UUID>>
+    -name : String
+    -email : String
+    -passwordHash : String
+    -role : UserRole
+    -departmentId : String
+    -phone : String
+    -avatarUrl : String
+    -isActive : Boolean
+    -lastLoginAt : DateTime
+    +login(email, password) : JWT
+    +updateProfile(data) : void
+  }
+
+  class Warehouse {
+    -id : String <<UUID>>
+    -code : String
+    -name : String
+    -address : String
+    -city : String
+    -picName : String
+    -picPhone : String
+    -isActive : Boolean
+    +getLocations() : Location[]
+    +getStockSummary() : StockInfo
+  }
+
+  class Item {
+    -id : String <<UUID>>
+    -sku : String
+    -name : String
+    -description : String
+    -categoryId : String
+    -unitId : String
+    -minStock : Integer
+    -maxStock : Integer
+    -price : Decimal
+    -isActive : Boolean
+    -batchTracking : Boolean
+    -expiredTracking : Boolean
+    -outboundMethod : OutboundMethod
+    +getStockByWarehouse(warehouseId) : Integer
+    +getBatches() : ItemBatch[]
+    +isLowStock() : Boolean
+    +isExpiringSoon() : Boolean
+  }
+
+  class Category {
+    -id : String <<UUID>>
+    -name : String
+    -description : String
+    -isActive : Boolean
+    +getItems() : Item[]
+    +toggleActive() : void
+  }
+
+  class Unit {
+    -id : String <<UUID>>
+    -name : String
+    -abbreviation : String
+    -isActive : Boolean
+    +toggleActive() : void
+  }
+
+  class Supplier {
+    -id : String <<UUID>>
+    -code : String
+    -name : String
+    -email : String
+    -phone : String
+    -npwp : String
+    -isPkp : Boolean
+    -paymentTerms : Integer
+    -rating : Decimal
+    -isActive : Boolean
+    -isBlacklisted : Boolean
+    +getPurchaseOrders() : PurchaseOrder[]
+    +getPriceHistory(itemId) : PriceHistory[]
+  }
+}
+
+package "Transaction Layer" #FFF3E0 {
+
+  class InboundTransaction {
+    -id : String <<UUID>>
+    -refNumber : String
+    -supplierId : String
+    -warehouseId : String
+    -receivedBy : String
+    -receivedDate : Date
+    -poId : String
+    -status : TransactionStatus
+    -photoUrl : String
+    +addItem(item, qty, price, batch) : void
+    +confirm() : void
+    +cancel() : void
+  }
+
+  class OutboundTransaction {
+    -id : String <<UUID>>
+    -refNumber : String
+    -requestId : String
+    -warehouseId : String
+    -processedBy : String
+    -outboundDate : Date
+    -status : TransactionStatus
+    +addItem(item, qty, batchId) : void
+    +confirm() : void
+    +cancel() : void
+  }
+
+  class Request {
+    -id : String <<UUID>>
+    -spbNumber : String
+    -requesterId : String
+    -departmentId : String
+    -warehouseId : String
+    -neededDate : Date
+    -purpose : String
+    -priority : String
+    -status : RequestStatus
+    +submit() : void
+    +approve(reviewerId, notes) : void
+    +reject(reviewerId, notes) : void
+    +process() : OutboundTransaction
+  }
+
+  class PurchaseOrder {
+    -id : String <<UUID>>
+    -poNumber : String
+    -supplierId : String
+    -warehouseId : String
+    -status : POStatus
+    -subtotal : Decimal
+    -discountAmount : Decimal
+    -taxRate : Decimal
+    -taxAmount : Decimal
+    -totalAmount : Decimal
+    +addItem(item, qty, price) : void
+    +calculateTotals() : void
+    +approve(userId) : void
+    +send() : void
+    +createInvoice() : Invoice
+  }
+
+  class Invoice {
+    -id : String <<UUID>>
+    -invoiceNumber : String
+    -poId : String
+    -supplierId : String
+    -invoiceDate : Date
+    -dueDate : Date
+    -totalAmount : Decimal
+    -paidAmount : Decimal
+    -remainingAmount : Decimal
+    -status : InvoiceStatus
+    -fakturPajakNumber : String
+    +addPayment(amount, method) : Payment
+    +isOverdue() : Boolean
+    +getRemainingAmount() : Decimal
+  }
+
+  class StockOpname {
+    -id : String <<UUID>>
+    -refNumber : String
+    -warehouseId : String
+    -conductedBy : String
+    -status : String
+    +addItem(itemId, physicalQty) : void
+    +getDifferences() : OpnameItem[]
+    +confirm() : void
+  }
+
+  class StockTransfer {
+    -id : String <<UUID>>
+    -refNumber : String
+    -fromWarehouseId : String
+    -toWarehouseId : String
+    -status : TransferStatus
+    +addItem(itemId, qty) : void
+    +confirmSend() : void
+    +confirmReceive() : void
+  }
+
+  class DeliveryOrder {
+    -id : String <<UUID>>
+    -doNumber : String
+    -outboundId : String
+    -warehouseId : String
+    -driverName : String
+    -vehiclePlate : String
+    -recipientName : String
+    -status : DeliveryStatus
+    +dispatch() : void
+    +deliver() : void
+  }
+}
+
+package "Finance Layer" #E8F5E9 {
+
+  class Payment {
+    -id : String <<UUID>>
+    -invoiceId : String
+    -amount : Decimal
+    -paymentDate : Date
+    -paymentMethod : String
+    -referenceNumber : String
+  }
+
+  class Budget {
+    -id : String <<UUID>>
+    -name : String
+    -departmentId : String
+    -periodStart : Date
+    -periodEnd : Date
+    -totalAmount : Decimal
+    -spentAmount : Decimal
+    +getRemainingBudget() : Decimal
+    +deduct(amount) : void
+    +isOverBudget() : Boolean
+  }
+}
+
+' ══════════════════════════════════════
+' RELATIONSHIPS
+' ══════════════════════════════════════
+
+User "1" --> "0..*" Warehouse : assigned to >
+User --> UserRole
+
+Item "0..*" --> "1" Category : belongs to >
+Item "0..*" --> "1" Unit : measured in >
+Item "0..*" --> "0..*" Warehouse : stocked in >
+
+InboundTransaction "0..*" --> "1" Supplier : from >
+InboundTransaction "0..*" --> "1" Warehouse : into >
+InboundTransaction "0..*" --> "0..1" PurchaseOrder : linked to >
+InboundTransaction --> TransactionStatus
+
+OutboundTransaction "0..*" --> "0..1" Request : fulfills >
+OutboundTransaction "0..*" --> "1" Warehouse : from >
+OutboundTransaction --> TransactionStatus
+
+Request "0..*" --> "1" User : requested by >
+Request --> RequestStatus
+
+PurchaseOrder "0..*" --> "1" Supplier : ordered from >
+PurchaseOrder "0..*" --> "1" Warehouse : delivered to >
+PurchaseOrder --> POStatus
+
+Invoice "0..*" --> "1" PurchaseOrder : based on >
+Invoice "0..*" --> "1" Supplier : billed by >
+Invoice --> InvoiceStatus
+
+Payment "0..*" --> "1" Invoice : pays >
+
+Budget "0..*" --> "0..1" Department : allocated to >
+
+StockOpname "0..*" --> "1" Warehouse : audits >
+StockTransfer --> Warehouse : from/to >
+
+DeliveryOrder "0..*" --> "1" OutboundTransaction : delivers >
+DeliveryOrder --> DeliveryStatus
+
+@enduml

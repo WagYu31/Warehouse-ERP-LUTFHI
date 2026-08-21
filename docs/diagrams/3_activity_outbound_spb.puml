@@ -1,0 +1,102 @@
+@startuml WMS_LUTFHI_Activity_Outbound
+!theme cerulean
+title **WMS LUTFHI - Activity Diagram**\nAlur Proses Barang Keluar (Outbound)
+
+|#E3F2FD| Requester |
+|#FFF3E0| Admin / Manager |
+|#E8F5E9| Staff Gudang |
+|#F3E5F5| Sistem WMS |
+
+|Requester|
+start
+:Buat Surat Permintaan\nBarang (**SPB**);
+:Isi detail permintaan:
+- Pilih item yang diminta
+- Qty yang dibutuhkan
+- Tanggal dibutuhkan
+- Tujuan penggunaan
+- Prioritas (normal/high/urgent);
+:Kirim SPB\n(status → "**Pending**");
+
+|Sistem WMS|
+:Generate SPB number\n(SPB-YYYYMMDD-XXX);
+:Kirim notifikasi\nke Admin/Manager;
+
+|Admin / Manager|
+:Terima notifikasi\npermintaan baru;
+:Review detail SPB;
+
+if (Permintaan wajar\n& stok tersedia?) then (Approve ✅)
+  :Set qty_approved\n(bisa lebih kecil dari qty_requested);
+  :Tambah catatan\napproval (opsional);
+  :Approve SPB\n(status → "**Approved**");
+  
+  |Sistem WMS|
+  :Kirim notifikasi\nke Requester & Staff;
+  
+  |Staff Gudang|
+  :Terima SPB\nyang sudah diapprove;
+  :Buat transaksi\n**Barang Keluar**;
+  
+  |Sistem WMS|
+  :Generate ref_number\n(OUT-YYYYMMDD-XXX);
+  
+  if (Item menggunakan\nbatch tracking?) then (Ya)
+    |Sistem WMS|
+    :Pilih batch otomatis\nmetode **FEFO/FIFO**;
+    note right
+      FEFO = First Expired First Out
+      FIFO = First In First Out
+      Bisa dioverride manual
+    end note
+  else (Tidak)
+    :Ambil dari stok\numum;
+  endif
+  
+  |Staff Gudang|
+  :Siapkan barang\nsesuai daftar;
+  :Input qty aktual\nyang dikeluarkan;
+  :Konfirmasi pengeluaran\n(status → "**Confirmed**");
+  
+  |Sistem WMS|
+  :Update stok gudang\n(current_stock -= qty);
+  :Update batch qty_remaining\n(jika batch tracking);
+  
+  if (Stok < min_stock?) then (Ya)
+    :Kirim alert\n**stok minimum** ⚠️;
+    
+    if (Auto reorder\naktif?) then (Ya)
+      :Auto generate\nPurchase Request;
+    else (Tidak)
+      :Kirim notifikasi\nke Admin;
+    endif
+  else (Tidak)
+    :Stok masih aman;
+  endif
+  
+  |Staff Gudang|
+  :Buat Surat Jalan\n(**Delivery Order**);
+  :Serahkan barang\nke Requester;
+  
+  |Requester|
+  :Terima barang;
+  
+  |Sistem WMS|
+  :SPB status → "**Completed**" ✅;
+  
+else (Reject ❌)
+  |Admin / Manager|
+  :Tambah alasan\npenolakan;
+  :Reject SPB\n(status → "**Rejected**");
+  
+  |Sistem WMS|
+  :Kirim notifikasi\npenolakan ke Requester;
+  
+  |Requester|
+  :Terima notifikasi\npenolakan;
+  :Bisa ajukan ulang\n(opsional);
+endif
+
+stop
+
+@enduml

@@ -1,0 +1,487 @@
+// WMS LUTFHI - Database Schema
+// Paste this at https://dbdiagram.io/d
+// =====================================
+
+Table warehouses {
+  id varchar(36) [pk]
+  code varchar(20) [unique, not null]
+  name varchar(100) [not null]
+  address text
+  city varchar(100)
+  pic_name varchar(100)
+  pic_phone varchar(20)
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table departments {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  head_name varchar(100)
+  created_at timestamp
+}
+
+Table users {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  email varchar(150) [unique, not null]
+  password_hash varchar(255) [not null]
+  role varchar(30) [not null, note: 'admin|staff|finance_procurement|manager']
+  department_id varchar(36)
+  phone varchar(20)
+  avatar_url varchar(500)
+  is_active boolean [default: true]
+  last_login_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_warehouses {
+  user_id varchar(36) [pk]
+  warehouse_id varchar(36) [pk]
+  is_primary boolean [default: false]
+}
+
+Table categories {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  description text
+  created_at timestamp
+}
+
+Table units {
+  id varchar(36) [pk]
+  name varchar(50) [not null]
+  abbreviation varchar(10) [not null]
+  created_at timestamp
+}
+
+Table suppliers {
+  id varchar(36) [pk]
+  code varchar(30) [unique]
+  name varchar(150) [not null]
+  email varchar(150)
+  phone varchar(30)
+  address text
+  city varchar(100)
+  npwp varchar(30)
+  is_pkp boolean [default: true]
+  payment_terms int [default: 30]
+  rating decimal(3,1) [default: 0]
+  is_active boolean [default: true]
+  is_blacklisted boolean [default: false]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table items {
+  id varchar(36) [pk]
+  sku varchar(50) [unique, not null]
+  name varchar(200) [not null]
+  description text
+  category_id varchar(36)
+  unit_id varchar(36)
+  min_stock int [default: 0]
+  max_stock int
+  price decimal(15,2) [default: 0]
+  photo_url varchar(500)
+  barcode varchar(100)
+  is_active boolean [default: true]
+  batch_tracking boolean [default: false]
+  expired_tracking boolean [default: false]
+  outbound_method varchar(10) [note: 'fefo|fifo|manual']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table item_stocks {
+  id varchar(36) [pk]
+  item_id varchar(36)
+  warehouse_id varchar(36)
+  current_stock int [default: 0]
+  last_updated timestamp
+}
+
+Table item_batches {
+  id varchar(36) [pk]
+  item_id varchar(36)
+  warehouse_id varchar(36)
+  batch_number varchar(100) [not null]
+  expired_date date
+  qty_received int [not null]
+  qty_remaining int [not null]
+  inbound_transaction_id varchar(36)
+  status varchar(20) [note: 'active|quarantine|disposed']
+  notes text
+  created_at timestamp
+}
+
+Table inbound_transactions {
+  id varchar(36) [pk]
+  ref_number varchar(50) [unique, not null]
+  supplier_id varchar(36)
+  warehouse_id varchar(36)
+  received_by varchar(36)
+  received_date date [not null]
+  po_id varchar(36)
+  po_number varchar(50)
+  notes text
+  status varchar(20) [note: 'pending|confirmed|cancelled']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table inbound_items {
+  id varchar(36) [pk]
+  transaction_id varchar(36)
+  item_id varchar(36)
+  location_id varchar(36)
+  qty_ordered int [default: 0]
+  qty_received int [not null]
+  unit_price decimal(15,2) [default: 0]
+  condition varchar(50) [default: 'good']
+  batch_number varchar(100)
+  expired_date date
+  notes text
+}
+
+Table outbound_transactions {
+  id varchar(36) [pk]
+  ref_number varchar(50) [unique, not null]
+  request_id varchar(36)
+  warehouse_id varchar(36)
+  processed_by varchar(36)
+  outbound_date date [not null]
+  notes text
+  status varchar(20) [note: 'pending|confirmed|cancelled']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table outbound_items {
+  id varchar(36) [pk]
+  transaction_id varchar(36)
+  item_id varchar(36)
+  batch_id varchar(36)
+  qty int [not null]
+  notes text
+}
+
+Table requests {
+  id varchar(36) [pk]
+  ref_number varchar(50) [unique, not null]
+  requester_id varchar(36)
+  department_id varchar(36)
+  warehouse_id varchar(36)
+  needed_date date [not null]
+  purpose text [not null]
+  priority varchar(10) [default: 'normal']
+  status varchar(20) [note: 'draft|pending|approved|rejected|completed']
+  notes text
+  reviewed_by varchar(36)
+  reviewed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table request_items {
+  id varchar(36) [pk]
+  request_id varchar(36)
+  item_id varchar(36)
+  qty_requested int [not null]
+  qty_approved int [default: 0]
+  notes text
+}
+
+Table stock_opnames {
+  id varchar(36) [pk]
+  ref_number varchar(50) [unique, not null]
+  warehouse_id varchar(36)
+  conducted_by varchar(36)
+  start_date timestamp
+  end_date timestamp
+  status varchar(20) [default: 'in_progress']
+  notes text
+  created_at timestamp
+}
+
+Table opname_items {
+  id varchar(36) [pk]
+  opname_id varchar(36)
+  item_id varchar(36)
+  system_qty int [default: 0]
+  physical_qty int [default: 0]
+  difference int
+  notes text
+}
+
+Table stock_transfers {
+  id varchar(36) [pk]
+  ref_number varchar(50) [unique, not null]
+  from_warehouse_id varchar(36)
+  to_warehouse_id varchar(36)
+  created_by varchar(36)
+  status varchar(20) [note: 'pending|in_transit|completed|cancelled']
+  notes text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table stock_transfer_items {
+  id varchar(36) [pk]
+  transfer_id varchar(36)
+  item_id varchar(36)
+  qty int [not null]
+  notes text
+}
+
+Table purchase_orders {
+  id varchar(36) [pk]
+  po_number varchar(50) [unique, not null]
+  supplier_id varchar(36)
+  warehouse_id varchar(36)
+  created_by varchar(36)
+  expected_date date
+  status varchar(20) [note: 'draft|sent|partial|complete|cancelled']
+  subtotal decimal(15,2) [default: 0]
+  tax_rate decimal(5,2) [default: 11]
+  tax_amount decimal(15,2) [default: 0]
+  total_amount decimal(15,2) [default: 0]
+  approved_by varchar(36)
+  approved_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table purchase_order_items {
+  id varchar(36) [pk]
+  po_id varchar(36)
+  item_id varchar(36)
+  qty_ordered int [not null]
+  qty_received int [default: 0]
+  unit_price decimal(15,2) [not null]
+  total_price decimal(15,2)
+  notes text
+}
+
+Table invoices {
+  id varchar(36) [pk]
+  invoice_number varchar(100) [not null]
+  po_id varchar(36)
+  supplier_id varchar(36)
+  invoice_date date [not null]
+  due_date date [not null]
+  subtotal decimal(15,2) [default: 0]
+  tax_rate decimal(5,2) [default: 11]
+  tax_amount decimal(15,2) [default: 0]
+  total_amount decimal(15,2) [not null]
+  paid_amount decimal(15,2) [default: 0]
+  remaining_amount decimal(15,2)
+  status varchar(20) [note: 'unpaid|partial|paid|overdue']
+  notes text
+  created_by varchar(36)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table payments {
+  id varchar(36) [pk]
+  invoice_id varchar(36)
+  amount decimal(15,2) [not null]
+  payment_date date [not null]
+  payment_method varchar(20) [note: 'cash|transfer|cheque']
+  reference_number varchar(100)
+  notes text
+  created_by varchar(36)
+  created_at timestamp
+}
+
+Table budgets {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  period_type varchar(20) [default: 'monthly']
+  period_start date [not null]
+  period_end date [not null]
+  department_id varchar(36)
+  total_amount decimal(15,2) [not null]
+  spent_amount decimal(15,2) [default: 0]
+  notes text
+  created_by varchar(36)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table reorder_configs {
+  id varchar(36) [pk]
+  item_id varchar(36)
+  warehouse_id varchar(36)
+  reorder_point int [not null]
+  reorder_qty int [not null]
+  preferred_supplier_id varchar(36)
+  auto_create_pr boolean [default: false]
+}
+
+Table delivery_orders {
+  id varchar(36) [pk]
+  do_number varchar(50) [unique, not null]
+  outbound_id varchar(36)
+  warehouse_id varchar(36)
+  driver_name varchar(100)
+  vehicle_plate varchar(20)
+  recipient_name varchar(100)
+  recipient_address text
+  recipient_phone varchar(30)
+  status varchar(20) [note: 'pending|in_transit|delivered|cancelled']
+  delivered_at timestamp
+  notes text
+  created_by varchar(36)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table returns {
+  id varchar(36) [pk]
+  return_number varchar(50) [unique, not null]
+  type varchar(20) [note: 'customer|supplier']
+  warehouse_id varchar(36)
+  supplier_id varchar(36)
+  reason text
+  status varchar(20) [note: 'pending|approved|rejected|completed']
+  notes text
+  created_by varchar(36)
+  reviewed_by varchar(36)
+  reviewed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table return_items {
+  id varchar(36) [pk]
+  return_id varchar(36)
+  item_id varchar(36)
+  qty int [not null]
+  condition varchar(50) [default: 'good']
+  notes text
+}
+
+Table notifications {
+  id varchar(36) [pk]
+  user_id varchar(36)
+  type varchar(50) [not null]
+  title varchar(200) [not null]
+  message text [not null]
+  link varchar(500)
+  is_read boolean [default: false]
+  created_at timestamp
+}
+
+Table audit_logs {
+  id varchar(36) [pk]
+  user_id varchar(36)
+  user_name varchar(100)
+  action varchar(20) [not null]
+  module varchar(50) [not null]
+  table_name varchar(50)
+  record_id varchar(100)
+  old_data json
+  new_data json
+  ip_address varchar(45)
+  created_at timestamp
+}
+
+// =====================================
+// RELATIONSHIPS
+// =====================================
+
+// Users & Auth
+Ref: users.department_id > departments.id
+Ref: user_warehouses.user_id > users.id
+Ref: user_warehouses.warehouse_id > warehouses.id
+
+// Items
+Ref: items.category_id > categories.id
+Ref: items.unit_id > units.id
+Ref: item_stocks.item_id > items.id
+Ref: item_stocks.warehouse_id > warehouses.id
+Ref: item_batches.item_id > items.id
+Ref: item_batches.warehouse_id > warehouses.id
+Ref: item_batches.inbound_transaction_id > inbound_transactions.id
+
+// Inbound
+Ref: inbound_transactions.supplier_id > suppliers.id
+Ref: inbound_transactions.warehouse_id > warehouses.id
+Ref: inbound_transactions.received_by > users.id
+Ref: inbound_transactions.po_id > purchase_orders.id
+Ref: inbound_items.transaction_id > inbound_transactions.id
+Ref: inbound_items.item_id > items.id
+
+// Outbound
+Ref: outbound_transactions.warehouse_id > warehouses.id
+Ref: outbound_transactions.request_id > requests.id
+Ref: outbound_transactions.processed_by > users.id
+Ref: outbound_items.transaction_id > outbound_transactions.id
+Ref: outbound_items.item_id > items.id
+Ref: outbound_items.batch_id > item_batches.id
+
+// Requests (SPB)
+Ref: requests.requester_id > users.id
+Ref: requests.department_id > departments.id
+Ref: requests.warehouse_id > warehouses.id
+Ref: requests.reviewed_by > users.id
+Ref: request_items.request_id > requests.id
+Ref: request_items.item_id > items.id
+
+// Stock Opname
+Ref: stock_opnames.warehouse_id > warehouses.id
+Ref: stock_opnames.conducted_by > users.id
+Ref: opname_items.opname_id > stock_opnames.id
+Ref: opname_items.item_id > items.id
+
+// Stock Transfer
+Ref: stock_transfers.from_warehouse_id > warehouses.id
+Ref: stock_transfers.to_warehouse_id > warehouses.id
+Ref: stock_transfers.created_by > users.id
+Ref: stock_transfer_items.transfer_id > stock_transfers.id
+Ref: stock_transfer_items.item_id > items.id
+
+// Purchase Orders
+Ref: purchase_orders.supplier_id > suppliers.id
+Ref: purchase_orders.warehouse_id > warehouses.id
+Ref: purchase_orders.created_by > users.id
+Ref: purchase_order_items.po_id > purchase_orders.id
+Ref: purchase_order_items.item_id > items.id
+
+// Invoices & Payments
+Ref: invoices.po_id > purchase_orders.id
+Ref: invoices.supplier_id > suppliers.id
+Ref: invoices.created_by > users.id
+Ref: payments.invoice_id > invoices.id
+Ref: payments.created_by > users.id
+
+// Budget
+Ref: budgets.department_id > departments.id
+Ref: budgets.created_by > users.id
+
+// Reorder
+Ref: reorder_configs.item_id > items.id
+Ref: reorder_configs.warehouse_id > warehouses.id
+Ref: reorder_configs.preferred_supplier_id > suppliers.id
+
+// Delivery Orders
+Ref: delivery_orders.outbound_id > outbound_transactions.id
+Ref: delivery_orders.warehouse_id > warehouses.id
+Ref: delivery_orders.created_by > users.id
+
+// Returns
+Ref: returns.warehouse_id > warehouses.id
+Ref: returns.supplier_id > suppliers.id
+Ref: returns.created_by > users.id
+Ref: returns.reviewed_by > users.id
+Ref: return_items.return_id > returns.id
+Ref: return_items.item_id > items.id
+
+// Notifications & Logs
+Ref: notifications.user_id > users.id
+Ref: audit_logs.user_id > users.id

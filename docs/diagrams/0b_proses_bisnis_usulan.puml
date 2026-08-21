@@ -1,0 +1,81 @@
+@startuml
+title PROSES BISNIS USULAN DENGAN SISTEM WMS LUTFHI\n(Setelah Menggunakan Aplikasi Web)
+
+start
+
+partition "1. PERMINTAAN BARANG (SPB)" {
+  :Peminta login ke WMS LUTFHI;
+  :Isi form SPB online\n(pilih item, qty, tujuan, prioritas);
+  :Sistem generate nomor SPB otomatis;
+  :Admin/Manager terima notifikasi;
+  :Approve/Reject SPB via dashboard;
+  :Peminta terima notifikasi status;
+}
+
+partition "2. PENGELUARAN BARANG" {
+  :Staff terima SPB yang sudah diapprove;
+  :Sistem tampilkan stok realtime;
+  if (Stok ada?) then (Ya)
+    :Staff buat transaksi Barang Keluar;
+    :Sistem pilih batch otomatis (FEFO/FIFO);
+    :Konfirmasi pengeluaran;
+    :Stok otomatis berkurang di sistem;
+    :Buat Surat Jalan digital;
+  else (Tidak)
+    :Sistem kirim alert stok habis;
+    :Otomatis trigger permintaan pembelian;
+  endif
+}
+
+partition "3. PENGADAAN BARANG (PO)" {
+  :Finance buat PO online\n(pilih supplier, item, qty, harga);
+  :Sistem hitung otomatis\n(subtotal, diskon, PPN, total);
+  :Sistem generate nomor PO otomatis;
+  :Admin approve PO via dashboard;
+  :Sistem potong saldo budget otomatis;
+  :Kirim PO ke supplier via email;
+}
+
+partition "4. PENERIMAAN BARANG" {
+  :Supplier kirim barang;
+  :Staff input Barang Masuk di sistem\n(link ke PO, qty, batch, expiry);
+  :Sistem cocokkan otomatis dengan PO;
+  if (Barang sesuai?) then (Ya)
+    :Konfirmasi penerimaan;
+    :Stok otomatis bertambah di sistem;
+    :Batch & expiry date tersimpan;
+    :Notifikasi ke Admin & Finance;
+  else (Tidak)
+    :Catat selisih di sistem;
+    :Buat retur via modul Retur;
+  endif
+}
+
+partition "5. INVOICE & PEMBAYARAN" {
+  :Finance buat Invoice dari PO;
+  :Sistem hitung DPP, PPN otomatis;
+  :Catat pembayaran di sistem;
+  :Sistem tracking jatuh tempo;
+  :Alert otomatis jika overdue;
+}
+
+partition "6. STOCK OPNAME" {
+  :Staff buat Stock Opname di sistem;
+  :Sistem load stok sistem otomatis;
+  :Staff input qty fisik;
+  :Sistem hitung selisih otomatis;
+  :Admin konfirmasi adjustment;
+  :Stok sistem di-update otomatis;
+}
+
+partition "7. LAPORAN & MONITORING" {
+  :Dashboard realtime\n(grafik stok, transaksi, keuangan);
+  :Laporan otomatis tersedia kapan saja;
+  :Export data CSV/ZIP satu klik;
+  :Audit trail tercatat otomatis;
+  :AI Chatbot bantu analisis data;
+}
+
+stop
+
+@enduml

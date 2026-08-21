@@ -1,0 +1,109 @@
+@startuml WMS_LUTFHI_Sequence_Inbound
+!theme cerulean
+title **WMS LUTFHI - Sequence Diagram**\nProses Penerimaan Barang (Inbound)
+
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBorderColor #2C3E50
+skinparam sequenceLifeLineBorderColor #7F8C8D
+
+actor "Staff Gudang" as Staff #4CAF50
+participant "Frontend\n(React)" as FE #E3F2FD
+participant "Backend API\n(PHP)" as BE #FFF3E0
+database "MySQL\nDatabase" as DB #F3E5F5
+actor "Admin" as Admin #FFD700
+
+== Membuat Transaksi Barang Masuk ==
+
+Staff -> FE : Buka halaman\nBarang Masuk
+activate FE
+FE -> BE : GET /inbound
+activate BE
+BE -> DB : SELECT inbound_transactions\nJOIN suppliers, warehouses, users
+activate DB
+DB --> BE : data transaksi
+deactivate DB
+BE --> FE : JSON { data: [...] }
+deactivate BE
+FE --> Staff : Tampilkan daftar\ntransaksi
+deactivate FE
+
+Staff -> FE : Klik "Tambah Barang Masuk"
+activate FE
+FE -> BE : GET /items, GET /suppliers,\nGET /warehouses
+activate BE
+BE -> DB : SELECT items, suppliers,\nwarehouses
+activate DB
+DB --> BE : master data
+deactivate DB
+BE --> FE : data untuk form
+deactivate BE
+FE --> Staff : Tampilkan form\ninput
+deactivate FE
+
+Staff -> FE : Isi form:\n- Supplier\n- Gudang\n- Tanggal terima\n- Items (qty, harga, batch, expiry)\n- Foto bukti
+activate FE
+FE -> FE : Validasi input\n(field wajib, qty > 0)
+FE -> BE : POST /inbound\n{ supplier_id, warehouse_id,\nreceived_date, items: [...] }
+activate BE
+BE -> BE : Generate UUID\n& ref_number\n(INB-YYYYMMDD-XXX)
+BE -> DB : INSERT INTO\ninbound_transactions
+activate DB
+DB --> BE : OK
+deactivate DB
+
+loop Untuk setiap item
+  BE -> DB : INSERT INTO\ninbound_items
+  activate DB
+  DB --> BE : OK
+  deactivate DB
+end
+
+BE --> FE : 201 Created\n{ id, ref_number }
+deactivate BE
+FE --> Staff : ✅ Toast: "Transaksi\nberhasil dibuat"
+deactivate FE
+
+== Konfirmasi Penerimaan ==
+
+Staff -> FE : Klik "Konfirmasi"\npada transaksi
+activate FE
+FE -> BE : PUT /inbound/{id}/confirm
+activate BE
+
+BE -> DB : UPDATE inbound_transactions\nSET status = 'confirmed'
+activate DB
+DB --> BE : OK
+deactivate DB
+
+loop Untuk setiap item yang dikonfirmasi
+  BE -> DB : UPDATE item_stocks\nSET current_stock += qty_received\n(INSERT jika belum ada)
+  activate DB
+  DB --> BE : OK
+  deactivate DB
+  
+  alt Jika batch tracking aktif
+    BE -> DB : INSERT INTO item_batches\n(batch_number, expired_date,\nqty_received, qty_remaining)
+    activate DB
+    DB --> BE : OK
+    deactivate DB
+  end
+  
+  BE -> DB : INSERT INTO price_history\n(item_id, supplier_id,\nunit_price, po_id)
+  activate DB
+  DB --> BE : OK
+  deactivate DB
+end
+
+BE -> DB : INSERT INTO notifications\n(user_id = admin,\ntitle = "Barang masuk dikonfirmasi")
+activate DB
+DB --> BE : OK
+deactivate DB
+
+BE --> FE : 200 OK\n{ message: "Dikonfirmasi" }
+deactivate BE
+FE --> Staff : ✅ Toast: "Penerimaan\ndikonfirmasi, stok diperbarui"
+deactivate FE
+
+BE --> Admin : 🔔 Notifikasi:\n"Barang masuk dikonfirmasi"
+
+@enduml

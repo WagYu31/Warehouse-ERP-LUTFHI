@@ -59,6 +59,25 @@ export default function OutboundPage() {
     setModal(true)
   }
 
+  useEffect(() => {
+    const fetchItemsForWarehouse = async () => {
+      if (form.warehouse_id) {
+        try {
+          const res = await api.get(`/items?warehouse_id=${form.warehouse_id}`)
+          setItems(res.data || res)
+        } catch { toast.error('Gagal memuat stok barang gudang') }
+      } else {
+        try {
+          const res = await api.get('/items')
+          setItems(res.data || res)
+        } catch {}
+      }
+    }
+    if (modal) {
+      fetchItemsForWarehouse()
+    }
+  }, [form.warehouse_id, modal])
+
   const addLine = () => setLines([...lines, { item_id:'', qty_issued:1 }])
   const rmLine  = (i) => setLines(lines.filter((_,idx) => idx !== i))
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx===i ? {...l, [k]: v} : l))

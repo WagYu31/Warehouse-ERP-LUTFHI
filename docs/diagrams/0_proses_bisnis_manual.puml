@@ -1,0 +1,73 @@
+@startuml
+title PROSES BISNIS MANUAL PERGUDANGAN\n(Sebelum Menggunakan Sistem WMS LUTFHI)
+
+start
+
+partition "1. PERMINTAAN BARANG" {
+  :Peminta tulis SPB di formulir kertas;
+  :Minta tanda tangan Kepala Departemen;
+  :Serahkan SPB ke Gudang;
+  :Kepala Gudang periksa & setujui SPB;
+}
+
+partition "2. PENGELUARAN BARANG" {
+  :Staff cek stok di Buku Stok / Excel;
+  if (Stok ada?) then (Ya)
+    :Siapkan barang dari rak;
+    :Tulis Bukti Pengeluaran Barang;
+    :Serahkan barang ke peminta;
+    :Update Kartu Stok manual;
+  else (Tidak)
+    :Informasikan stok habis via telepon;
+  endif
+}
+
+partition "3. PENGADAAN BARANG" {
+  :Kepala Gudang tulis memo\npermintaan pembelian;
+  :Bag. Keuangan cek anggaran di Excel;
+  if (Anggaran cukup?) then (Ya)
+    :Hubungi supplier via telepon/WA;
+    :Tulis PO di Word/kertas;
+    :Minta tanda tangan pimpinan;
+    :Kirim PO ke supplier via fax/email;
+  else (Tidak)
+    :Tolak pembelian;
+  endif
+}
+
+partition "4. PENERIMAAN BARANG" {
+  :Supplier kirim barang + Surat Jalan;
+  :Staff cari PO di tumpukan arsip;
+  :Hitung & periksa barang fisik;
+  if (Barang sesuai?) then (Ya)
+    :Tulis di Buku Penerimaan Barang;
+    :Simpan barang di rak gudang;
+    :Update Kartu Stok manual;
+    :Serahkan faktur ke Keuangan;
+    :Keuangan catat hutang & bayar;
+  else (Tidak)
+    :Komplain / retur ke supplier;
+  endif
+}
+
+partition "5. STOCK OPNAME" {
+  :Tulis daftar semua item dari buku stok;
+  :Hitung fisik semua barang (1-3 hari);
+  :Bandingkan stok fisik vs buku;
+  if (Ada selisih?) then (Ya)
+    :Adjustment stok manual;
+  else (Tidak)
+    :Stok akurat;
+  endif
+}
+
+partition "6. PELAPORAN" {
+  :Kumpulkan data dari buku & kertas;
+  :Ketik laporan di Excel (2-5 hari);
+  :Serahkan ke pimpinan;
+  :Arsipkan dokumen di lemari;
+}
+
+stop
+
+@enduml

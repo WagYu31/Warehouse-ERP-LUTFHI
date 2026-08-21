@@ -1,0 +1,225 @@
+@startuml WMS_LUTFHI_Use_Case_Diagram
+!theme cerulean
+title **WMS LUTFHI - Use Case Diagram**\nSistem Manajemen Gudang Enterprise
+
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam usecaseBackgroundColor #FEFEFE
+skinparam usecaseBorderColor #2C3E50
+
+' ══════════════════════════════════════
+' AKTOR
+' ══════════════════════════════════════
+actor "Administrator" as Admin #FFD700
+actor "Staff Gudang" as Staff #4CAF50
+actor "Requester\n(Peminta Barang)" as Requester #2196F3
+actor "Finance &\nProcurement" as Finance #9C27B0
+actor "Manager" as Manager #FF5722
+
+' ══════════════════════════════════════
+' MODUL SISTEM
+' ══════════════════════════════════════
+
+rectangle "🔐 **Autentikasi**" as AuthPkg {
+  usecase "Login" as UC_Login
+  usecase "Logout" as UC_Logout
+  usecase "Edit Profil" as UC_EditProfile
+}
+
+rectangle "📊 **Dashboard**" as DashPkg {
+  usecase "Lihat Ringkasan\nStok & Transaksi" as UC_Dashboard
+  usecase "Lihat Grafik\nAnalitik" as UC_Analytics
+  usecase "Lihat Notifikasi" as UC_Notif
+}
+
+rectangle "📦 **Manajemen Inventaris**" as InvPkg {
+  usecase "Kelola Item\n(CRUD)" as UC_ManageItem
+  usecase "Lihat Stok\nPer Gudang" as UC_ViewStock
+  usecase "Scan Barcode/\nQR Code" as UC_Scan
+  usecase "Konfigurasi\nReorder Point" as UC_Reorder
+}
+
+rectangle "⬇️ **Barang Masuk (Inbound)**" as InPkg {
+  usecase "Catat Penerimaan\nBarang" as UC_CreateInbound
+  usecase "Konfirmasi\nPenerimaan" as UC_ConfirmInbound
+  usecase "Input Batch &\nExpiry Date" as UC_BatchInput
+}
+
+rectangle "⬆️ **Barang Keluar (Outbound)**" as OutPkg {
+  usecase "Proses Pengiriman\nBarang" as UC_CreateOutbound
+  usecase "Konfirmasi\nPengeluaran" as UC_ConfirmOutbound
+}
+
+rectangle "📋 **Permintaan Barang (SPB)**" as ReqPkg {
+  usecase "Buat Permintaan\nBarang (SPB)" as UC_CreateSPB
+  usecase "Approve/Reject\nPermintaan" as UC_ApproveSPB
+  usecase "Lihat Status\nPermintaan" as UC_TrackSPB
+}
+
+rectangle "🛒 **Purchase Order**" as POPkg {
+  usecase "Buat Purchase\nOrder (PO)" as UC_CreatePO
+  usecase "Approve PO" as UC_ApprovePO
+  usecase "Kirim PO ke\nSupplier" as UC_SendPO
+}
+
+rectangle "📄 **Invoice & Pembayaran**" as InvocePkg {
+  usecase "Buat Invoice" as UC_CreateInvoice
+  usecase "Catat Pembayaran" as UC_Payment
+  usecase "Kelola Faktur\nPajak" as UC_TaxInvoice
+}
+
+rectangle "💰 **Anggaran (Budget)**" as BudgetPkg {
+  usecase "Kelola Anggaran\nDepartemen" as UC_ManageBudget
+  usecase "Monitor Serapan\nAnggaran" as UC_MonitorBudget
+}
+
+rectangle "🔄 **Stock Opname**" as OpnamePkg {
+  usecase "Mulai Stock\nOpname" as UC_StartOpname
+  usecase "Input Stok Fisik" as UC_InputPhysical
+  usecase "Konfirmasi &\nAdjustment" as UC_ConfirmOpname
+}
+
+rectangle "↔️ **Transfer Stok**" as TransferPkg {
+  usecase "Buat Transfer\nAntar Gudang" as UC_CreateTransfer
+  usecase "Konfirmasi Kirim\n& Terima" as UC_ConfirmTransfer
+}
+
+rectangle "🚚 **Surat Jalan**" as DOPkg {
+  usecase "Buat Surat\nJalan (DO)" as UC_CreateDO
+  usecase "Update Status\nPengiriman" as UC_UpdateDO
+}
+
+rectangle "🔙 **Retur**" as ReturnPkg {
+  usecase "Buat Retur\n(Customer/Supplier)" as UC_CreateReturn
+  usecase "Approve Retur" as UC_ApproveReturn
+}
+
+rectangle "📈 **Laporan**" as ReportPkg {
+  usecase "Lihat Laporan\nStok" as UC_StockReport
+  usecase "Lihat Laporan\nTransaksi" as UC_TxReport
+  usecase "Export Data\n(CSV/PDF)" as UC_Export
+}
+
+rectangle "⚙️ **Administrasi**" as AdminPkg {
+  usecase "Kelola Master Data\n(Kategori, Satuan)" as UC_MasterData
+  usecase "Kelola Pengguna\n& Hak Akses" as UC_ManageUser
+  usecase "Kelola Gudang\n& Departemen" as UC_ManageWH
+  usecase "Kelola Supplier" as UC_ManageSupplier
+  usecase "Backup Data" as UC_Backup
+}
+
+rectangle "🤖 **AI Assistant**" as AIPkg {
+  usecase "Tanya Chatbot\nAI Gudang" as UC_AIChat
+}
+
+' ══════════════════════════════════════
+' RELASI AKTOR → USE CASE
+' ══════════════════════════════════════
+
+' Semua user bisa login
+Admin --> UC_Login
+Staff --> UC_Login
+Requester --> UC_Login
+Finance --> UC_Login
+Manager --> UC_Login
+
+Admin --> UC_EditProfile
+Staff --> UC_EditProfile
+Requester --> UC_EditProfile
+Finance --> UC_EditProfile
+
+' Dashboard & Notifikasi
+Admin --> UC_Dashboard
+Staff --> UC_Dashboard
+Finance --> UC_Dashboard
+Manager --> UC_Dashboard
+Admin --> UC_Notif
+Staff --> UC_Notif
+
+' Inventaris
+Admin --> UC_ManageItem
+Staff --> UC_ManageItem
+Staff --> UC_ViewStock
+Admin --> UC_ViewStock
+Staff --> UC_Scan
+Admin --> UC_Reorder
+
+' Inbound
+Staff --> UC_CreateInbound
+Staff --> UC_ConfirmInbound
+Staff --> UC_BatchInput
+Admin --> UC_ConfirmInbound
+
+' Outbound
+Staff --> UC_CreateOutbound
+Staff --> UC_ConfirmOutbound
+Admin --> UC_ConfirmOutbound
+
+' SPB Request
+Requester --> UC_CreateSPB
+Requester --> UC_TrackSPB
+Admin --> UC_ApproveSPB
+Manager --> UC_ApproveSPB
+
+' Purchase Order
+Finance --> UC_CreatePO
+Finance --> UC_SendPO
+Admin --> UC_ApprovePO
+
+' Invoice
+Finance --> UC_CreateInvoice
+Finance --> UC_Payment
+Finance --> UC_TaxInvoice
+
+' Budget
+Admin --> UC_ManageBudget
+Finance --> UC_MonitorBudget
+Manager --> UC_MonitorBudget
+
+' Stock Opname
+Staff --> UC_StartOpname
+Staff --> UC_InputPhysical
+Admin --> UC_ConfirmOpname
+
+' Transfer
+Staff --> UC_CreateTransfer
+Staff --> UC_ConfirmTransfer
+Admin --> UC_ConfirmTransfer
+
+' Delivery Order
+Staff --> UC_CreateDO
+Staff --> UC_UpdateDO
+
+' Return
+Staff --> UC_CreateReturn
+Admin --> UC_ApproveReturn
+
+' Laporan
+Manager --> UC_StockReport
+Manager --> UC_TxReport
+Admin --> UC_Export
+Finance --> UC_Export
+Manager --> UC_Export
+
+' Admin only
+Admin --> UC_MasterData
+Admin --> UC_ManageUser
+Admin --> UC_ManageWH
+Admin --> UC_ManageSupplier
+Admin --> UC_Backup
+
+' AI
+Admin --> UC_AIChat
+Staff --> UC_AIChat
+
+' ══════════════════════════════════════
+' INCLUDE / EXTEND
+' ══════════════════════════════════════
+UC_CreateInbound ..> UC_BatchInput : <<include>>
+UC_ConfirmInbound ..> UC_ViewStock : <<extend>>\nupdates stock
+UC_ConfirmOutbound ..> UC_ViewStock : <<extend>>\nreduces stock
+UC_ApprovePO ..> UC_MonitorBudget : <<extend>>\ndeducts budget
+UC_CreateOutbound ..> UC_ApproveSPB : <<include>>\nrequires approved SPB
+
+@enduml

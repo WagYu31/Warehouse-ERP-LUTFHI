@@ -1,0 +1,63 @@
+@startuml WMS_LUTFHI_Activity_Stock_Opname
+!theme cerulean
+title **WMS LUTFHI - Activity Diagram**\nAlur Proses Stock Opname
+
+|#E8F5E9| Staff Gudang |
+|#FFE0B2| Admin |
+|#F3E5F5| Sistem WMS |
+
+|Admin|
+start
+:Tentukan jadwal\nstock opname;
+:Pilih gudang\nyang akan diopname;
+
+|Staff Gudang|
+:Buat **Stock Opname**\nbaru;
+
+|Sistem WMS|
+:Generate ref_number\n(OPN-YYYYMMDD-XXX);
+:Load seluruh item\ndi gudang terpilih;
+:Tampilkan stok sistem\n(system_qty) tiap item;
+:Status → "**In Progress**";
+
+|Staff Gudang|
+:Hitung stok fisik\ndi gudang;
+:Input **physical_qty**\nuntuk setiap item;
+
+|Sistem WMS|
+:Hitung selisih otomatis\n(difference = physical - system);
+:Highlight item dengan\nselisih ≠ 0;
+
+|Staff Gudang|
+:Review selisih;
+:Tambah catatan\nuntuk item berselisih;
+
+if (Semua item\nsudah dihitung?) then (Ya)
+  
+  |Admin|
+  :Review hasil opname;
+  
+  if (Setuju dengan\nhasil opname?) then (Ya)
+    :Konfirmasi &\nFinalisasi opname;
+    
+    |Sistem WMS|
+    :Update stok sistem\n= stok fisik;
+    :Status → "**Completed**" ✅;
+    :Catat adjustment\ndi audit log;
+    :Kirim notifikasi\nke Manager;
+    
+  else (Tidak)
+    :Minta staff\nhitung ulang;
+    
+    |Staff Gudang|
+    :Hitung ulang\nitem bermasalah;
+  endif
+
+else (Belum)
+  |Staff Gudang|
+  :Lanjutkan\npenghitungan;
+endif
+
+stop
+
+@enduml
