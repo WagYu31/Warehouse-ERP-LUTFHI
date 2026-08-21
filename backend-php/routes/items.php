@@ -104,14 +104,17 @@ function handleItems(string $method, string $uri, array $user, array &$params): 
         if ($check->fetch()) respondError('SKU already exists', 409);
 
         $id = generateUUID();
+        $categoryId = !empty($b['category_id']) ? $b['category_id'] : null;
+        $unitId     = !empty($b['unit_id']) ? $b['unit_id'] : null;
+
         $db->prepare("
             INSERT INTO items(id,sku,name,description,category_id,unit_id,min_stock,max_stock,
                               price,photo_url,barcode,is_active,batch_tracking,expired_tracking,
                               alert_days_before,outbound_method)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
-            $id, $b['sku'], $b['name'], $b['description']??null, $b['category_id']??null,
-            $b['unit_id'], $b['min_stock']??0, $b['max_stock']??null, $b['price']??0,
+            $id, $b['sku'], $b['name'], $b['description']??null, $categoryId,
+            $unitId, $b['min_stock']??0, $b['max_stock']??null, $b['price']??0,
             $b['photo_url']??null, $b['barcode']??null, $b['is_active']??1,
             $b['batch_tracking']??0, $b['expired_tracking']??0,
             $b['alert_days_before']??30, $b['outbound_method']??'fefo'
@@ -132,14 +135,17 @@ function handleItems(string $method, string $uri, array $user, array &$params): 
     if ($method === 'PUT' && preg_match('#^/items/([^/]+)$#', $uri, $m)) {
         requireRole($user, 'admin');
         $b = requireBody();
+        $categoryId = !empty($b['category_id']) ? $b['category_id'] : null;
+        $unitId     = !empty($b['unit_id']) ? $b['unit_id'] : null;
+
         $db->prepare("
             UPDATE items SET sku=?,name=?,description=?,category_id=?,unit_id=?,min_stock=?,
                              max_stock=?,price=?,photo_url=?,barcode=?,is_active=?,
                              batch_tracking=?,expired_tracking=?,outbound_method=?,updated_at=NOW()
             WHERE id=?
         ")->execute([
-            $b['sku'], $b['name'], $b['description']??null, $b['category_id']??null,
-            $b['unit_id'], $b['min_stock']??0, $b['max_stock']??null, $b['price']??0,
+            $b['sku'], $b['name'], $b['description']??null, $categoryId,
+            $unitId, $b['min_stock']??0, $b['max_stock']??null, $b['price']??0,
             $b['photo_url']??null, $b['barcode']??null, $b['is_active']??1,
             $b['batch_tracking']??0, $b['expired_tracking']??0,
             $b['outbound_method']??'fefo', $m[1]
