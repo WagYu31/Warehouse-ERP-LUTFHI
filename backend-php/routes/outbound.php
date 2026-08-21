@@ -73,10 +73,11 @@ function handleOutbound(string $method, string $uri, array $user, array &$params
             $id  = generateUUID();
             $ref = generateRef('DO');
 
+            $requestId = !empty($b['request_id']) ? $b['request_id'] : null;
             $db->prepare("
                 INSERT INTO outbound_transactions(id,ref_number,warehouse_id,issued_by,outbound_date,destination,request_id,notes,status)
                 VALUES(?,?,?,?,?,?,?,?,'confirmed')
-            ")->execute([$id,$ref,$b['warehouse_id'],$user['sub'],$b['outbound_date'],$b['destination']??null,$b['request_id']??null,$b['notes']??null]);
+            ")->execute([$id,$ref,$b['warehouse_id'],$user['sub'],$b['outbound_date'],$b['destination']??null,$requestId,$b['notes']??null]);
 
             $prepItem = $db->prepare("INSERT INTO outbound_items(id,transaction_id,item_id,qty_issued,batch_number,notes) VALUES(?,?,?,?,?,?)");
             $deductStock = $db->prepare("
