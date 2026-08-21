@@ -6,7 +6,6 @@ yarn-debug.log*
 .pnp.js
 
 # Build output
-dist/
 build/
 .vite/
 
