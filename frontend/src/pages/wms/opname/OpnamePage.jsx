@@ -70,7 +70,17 @@ export default function OpnamePage() {
     } catch (e) { toast.error(e?.response?.data?.message || 'Gagal membuat opname') }
   }
 
-  const openView = (row) => { setSelected(row); setDetailModal(true) }
+  const openView = async (row) => {
+    setSelected(row)
+    setOpnameDetail(null)
+    setDetailModal(true)
+    try {
+      const res = await api.get(`/opname/${row.id}`)
+      setOpnameDetail(res?.data || res)
+    } catch {
+      toast.error('Gagal memuat detail barang opname')
+    }
+  }
 
   // Load detail untuk counting atau review
   const loadDetail = async (forMode) => {
@@ -88,7 +98,7 @@ export default function OpnamePage() {
       if (forMode === 'count') {
         const initial = {}
         ;(detail.items || []).forEach(item => {
-          initial[item.item_id] = item.physical_count >= 0 ? item.physical_count : item.system_stock
+          initial[item.item_id] = (item.physical_count !== null && item.physical_count !== undefined && item.physical_count >= 0) ? item.physical_count : item.system_stock
         })
         setCounts(initial)
         setDetailModal(false)
@@ -193,9 +203,60 @@ export default function OpnamePage() {
                 <DR label="Disetujui Oleh" value={selected.approved_by_name || <span className="text-slate-500 italic">Belum disetujui</span>} />
               </div>
             </div>
+            
+            {/* Daftar Barang Section */}
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ClipboardCheck size={14} className="text-gold-400" />
+                <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider">Daftar Barang</span>
+              </div>
+              
+              {!opnameDetail ? (
+                <div className="text-center py-4 text-xs text-slate-500 animate-pulse">Memuat daftar barang...</div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-12 gap-2 pb-1 border-b border-white/[0.06] text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
+                    <span className="col-span-6">Nama Item</span>
+                    <span className="col-span-3 text-center">Stok Sistem</span>
+                    <span className="col-span-3 text-center">Stok Fisik</span>
+                  </div>
+                  {opnameDetail.items && opnameDetail.items.map(item => {
+                    const selisih = (item.physical_count !== null && item.physical_count !== undefined) 
+                      ? (item.physical_count - item.system_stock) 
+                      : null;
+                    return (
+                      <div key={item.item_id} className="grid grid-cols-12 gap-2 py-1.5 items-center hover:bg-white/[0.02] rounded-lg">
+                        <div className="col-span-6">
+                          <p className="text-xs font-medium text-white truncate">{item.item_name || item.name}</p>
+                          <p className="text-[10px] text-slate-500">{item.sku}</p>
+                        </div>
+                        <div className="col-span-3 text-center text-xs text-blue-400 font-semibold">
+                          {item.system_stock}
+                        </div>
+                        <div className="col-span-3 text-center text-xs text-white font-semibold">
+                          {item.physical_count !== null && item.physical_count !== undefined ? (
+                            <span>
+                              {item.physical_count}
+                              {selisih !== null && selisih !== 0 && (
+                                <span className={`ml-1 text-[10px] ${selisih > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  ({selisih > 0 ? '+' : ''}{selisih})
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 italic text-[10px]">Belum dihitung</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
-              {/* Staff: tombol hitung (hanya jika status in_progress) */}
-              {isStaff && selected.status === 'in_progress' && (
+              {/* Staff/Admin: tombol hitung (hanya jika status in_progress) */}
+              {(isStaff || isAdmin) && selected.status === 'in_progress' && (
                 <button onClick={() => loadDetail('count')} className="px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white font-semibold text-sm">
                   📋 Input Hitungan Fisik
                 </button>

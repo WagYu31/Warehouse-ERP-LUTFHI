@@ -49,9 +49,9 @@ function handleOpname(string $method, string $uri, array $user, array &$params):
         return;
     }
 
-    // POST /opname/:id/submit — Tahap 2: Staff input hitungan fisik
+    // POST /opname/:id/submit — Tahap 2: Staff/Admin input hitungan fisik
     if ($method === 'POST' && preg_match('#^/opname/([^/]+)/submit$#', $uri, $m)) {
-        requireRole($user, 'staff');
+        requireRole($user, 'admin', 'staff');
         $b = requireBody();
 
         // Validasi status harus in_progress
