@@ -94,9 +94,10 @@ function handleInbound(string $method, string $uri, array $user, array &$params)
             $prepItem = $db->prepare("INSERT INTO inbound_items(id,transaction_id,item_id,qty_received,unit_price,batch_number,expired_date,location_id,notes) VALUES(?,?,?,?,?,?,?,?,?)");
 
             foreach ($b['items'] as $item) {
-                if (empty($item['item_id']) || empty($item['qty_received'])) continue;
+                $qty = $item['qty_received'] ?? $item['qty'] ?? 0;
+                if (empty($item['item_id']) || empty($qty)) continue;
                 $locationId = !empty($item['location_id']) ? $item['location_id'] : null;
-                $prepItem->execute([generateUUID(), $id, $item['item_id'], $item['qty_received'], $item['unit_price']??0, $item['batch_number']??null, $item['expired_date']??null, $locationId, $item['notes']??null]);
+                $prepItem->execute([generateUUID(), $id, $item['item_id'], $qty, $item['unit_price']??0, $item['batch_number']??null, $item['expired_date']??null, $locationId, $item['notes']??null]);
             }
 
             $db->commit();
